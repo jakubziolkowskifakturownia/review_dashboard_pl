@@ -1,4 +1,6 @@
 class Review < ApplicationRecord
+  include SafeBroadcasting
+
   # `challenged`: ktoś podważył wysłaną decyzję (cudzy CHANGES_REQUESTED na PR-ze albo
   # nowe komentarze w zadaniu po approve). Followup konfrontujący jest już w kolejce,
   # ale status jest osobny, bo to inna robota niż „autor poprawił, sprawdź”: tu trzeba
@@ -719,14 +721,6 @@ class Review < ApplicationRecord
 
   def side_run_error(kind)
     claude_runs.where(kind: kind).order(:id).last&.error_message
-  end
-
-  # Broadcast to kosmetyka (odświeżenie strony pokaże stan) — jego błąd nie może
-  # wywracać logiki biznesowej ani boota (np. render przed załadowaniem routes).
-  def broadcast_safely(label)
-    yield
-  rescue StandardError => e
-    Rails.logger.warn("#{label} dla review #{id} nie powiódł się: #{e.class}: #{e.message}")
   end
 
   # Rozmiar okna przychodzi dopiero z eventem `result`, więc bieżąca sesja poznaje
