@@ -110,7 +110,7 @@ class GithubClientTest < ActiveSupport::TestCase
     assert_equal payload, result
     assert_equal [ "gh", "search", "prs", "--repo", "acme/webapp", "--state", "open",
                    "--review-requested", "@me", "--limit", "40",
-                   "--json", "number,title,url,author,updatedAt" ], fake.calls.sole[:cmd]
+                   "--json", "number,title,url,author,updatedAt,labels" ], fake.calls.sole[:cmd]
   end
 
   test "should list my own open PRs with their head branch" do

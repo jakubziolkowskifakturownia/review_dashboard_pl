@@ -255,6 +255,17 @@ padnięte `gh` nigdy jej nie czyści (pusty wynik wyglądałby jak „nikt nie c
 Kafel PR-a bez review w dashboardzie prowadzi do formularza z wypełnionym `pr_url`
 i linkiem do zadania wyłuskanym z opisu PR-a.
 
+**Filtr po labelkach.** Kolejka pobiera labelki PR-ów razem z `gh search prs`
+(odświeżają się razem z kolejką) i pokazuje je na kaflach. Nad kolejką stoi pigułka
+na każdą labelkę obecną w kolejce; klik przechodzi cyklem **pokaż → ukryj → bez filtra**:
+- „pokaż" — zostają PR-y z którąkolwiek z labelek „pokaż",
+- „ukryj" — wycina PR z tą labelką i wygrywa z „pokaż" (np. ukryj `WIP`).
+
+Filtr zapisuje się w projekcie głównym (`inbox_shown_labels` / `inbox_hidden_labels`),
+a nie w adresie strony: kolejkę przerysowuje też broadcast z tła, który requestu nie ma.
+Instancja jest per osoba, więc to i tak Twoje ustawienie. Licznik „czeka na Twoje review"
+liczy kolejkę po filtrze, a obok pigułek widać, ile PR-ów filtr ukrył.
+
 Własne PR-y nie znikają z apki — mają osobną zakładkę [🪞 Self review](#self-review)
 i nie zaśmiecają kolejki „czeka na Twoje review".
 

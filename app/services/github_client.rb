@@ -44,7 +44,7 @@ class GithubClient
   def search_prs(repo:, role:, repo_dir:, limit: 40)
     result = run!([ "gh", "search", "prs", "--repo", repo, "--state", "open",
                     "--#{role}", "@me", "--limit", limit.to_s,
-                    "--json", "number,title,url,author,updatedAt" ],
+                    "--json", "number,title,url,author,updatedAt,labels" ],
                   label: "gh search prs --#{role}", chdir: repo_dir)
     JSON.parse(result.stdout)
   end

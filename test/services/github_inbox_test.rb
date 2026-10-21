@@ -41,9 +41,10 @@ class GithubInboxTest < ActiveSupport::TestCase
     end
   end
 
-  def pr(number, author:, title: "PR #{number}", updated_at: "2026-07-30T08:00:00Z")
+  def pr(number, author:, title: "PR #{number}", updated_at: "2026-07-30T08:00:00Z", labels: [])
     { "number" => number, "title" => title, "author" => { "login" => author },
-      "updatedAt" => updated_at, "url" => "https://github.com/acme/webapp/pull/#{number}" }
+      "updatedAt" => updated_at, "url" => "https://github.com/acme/webapp/pull/#{number}",
+      "labels" => labels.map { |name| { "id" => "LA_#{name}", "name" => name, "color" => "ededed" } } }
   end
 
   def review_event(login, at) = { "author" => { "login" => login }, "submittedAt" => at, "state" => "COMMENTED" }
@@ -63,6 +64,25 @@ class GithubInboxTest < ActiveSupport::TestCase
     item = @project.inbox_items.sole
     assert_equal [ 10, "requested", "kolega" ], [ item.pr_number, item.reason, item.author ]
     assert_equal Time.utc(2026, 7, 30, 8), item.signal_at
+  end
+
+  # Filtr kolejki działa na nazwach labelek, więc reszta obiektu z `gh` (id, kolor) nie jest zapisywana.
+  test "should store PR label names on queued items" do
+    github = FakeGithub.new(requested: [ pr(13, author: "kolega", labels: %w[KSeF WIP]), pr(14, author: "kolega") ])
+
+    refresh(github)
+
+    assert_equal({ 13 => %w[KSeF WIP], 14 => [] },
+                 @project.inbox_items.order(:pr_number).to_h { |item| [ item.pr_number, item.pr_labels ] })
+  end
+
+  test "should refresh labels of a PR already in the queue" do
+    @project.inbox_items.create!(pr_number: 15, url: "https://github.com/acme/webapp/pull/15", reason: "requested",
+                                 pr_labels: %w[WIP])
+
+    refresh(FakeGithub.new(requested: [ pr(15, author: "kolega", labels: %w[gotowe]) ]))
+
+    assert_equal %w[gotowe], @project.inbox_items.sole.pr_labels
   end
 
   # Sedno zmiany semantyki: to jest dashboard do recenzowania CUDZEGO kodu.

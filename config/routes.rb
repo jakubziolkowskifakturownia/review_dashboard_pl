@@ -20,6 +20,8 @@ Rails.application.routes.draw do
       # Przełącznik głównego projektu — collection, bo odpowiedzią jest przebudowa
       # kolejek całej strony wejściowej, a nie widok jednego projektu.
       post :select
+      # Filtr kolejki po labelkach PR-a — należy do projektu głównego, jak sama kolejka.
+      post :cycle_inbox_label
     end
     member do
       post :archive

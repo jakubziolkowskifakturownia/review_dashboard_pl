@@ -210,6 +210,17 @@ table#reviews td.activity-cell, table#reviews td.worktree-cell { white-space: no
 .qfoot { display: flex; align-items: center; gap: 10px; margin: 8px 0 0; }
 .btn-small { padding: 4px 10px; font-size: 13px; }
 .qfoot form.button_to { display: inline-block; }
+/* Filtr kolejki po labelkach PR-a: stan widać po kolorze i znaku, bo sam kolor
+   nie odróżni „ukryj" od „pokaż" w czytniku ani przy daltonizmie. */
+.label-filter { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 0 0 10px; font-size: 12px; }
+.label-filter form.button_to { display: inline-block; margin: 0; }
+.label-chip { font: inherit; font-size: 12px; padding: 2px 9px; border-radius: 999px; cursor: pointer;
+              background: var(--surface); border: 1px solid var(--line); color: var(--muted); }
+.label-chip:hover { border-color: var(--fg); color: var(--fg); }
+.label-chip-shown { background: var(--info-bg); border-color: var(--accent); color: var(--accent); }
+.label-chip-hidden { border-style: dashed; text-decoration: line-through; }
+.pr-labels { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
+.pr-label { font-size: 11px; padding: 1px 7px; border-radius: 999px; background: var(--badge-bg); color: var(--muted); }
 .qtop { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; }
 .qproj { color: var(--muted); text-decoration: none; border-bottom: 1px dotted var(--line); }
 .qwait { color: var(--muted); }

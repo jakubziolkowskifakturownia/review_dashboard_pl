@@ -77,6 +77,24 @@ class OrphanedRunsCleanupTest < ActiveSupport::TestCase
     FileUtils.rm_rf(@review.artifacts_dir)
   end
 
+  # Przy boocie broadcast potrafi się wywrócić (render partiala przed załadowaniem routes).
+  # Zatrzymany na pierwszym runie cleanup zostawiał gotowe review w „reviewing" na zawsze.
+  test "błąd broadcastu nie przerywa sprzątania ani odzyskania wyniku z dysku" do
+    @review.update!(status: "reviewing")
+    run = @review.claude_runs.create!(kind: "review", claude_config: "/x", status: "running", supervisor_pid: nil)
+    FileUtils.mkdir_p(@review.artifacts_dir)
+    File.write(@review.artifacts_dir.join("result.json"), { summary: "Odzyskane", findings: [], playwright: nil }.to_json)
+
+    failing_broadcast = ->(*_args, **_kwargs) { raise NoMethodError, "undefined method 'retry_run_review_path'" }
+    Turbo::StreamsChannel.stub :broadcast_replace_to, failing_broadcast do
+      OrphanedRunsCleanup.call
+    end
+    assert_equal({ run_status: "aborted", review_status: "reviewed" },
+                 { run_status: run.reload.status, review_status: @review.reload.status })
+  ensure
+    FileUtils.rm_rf(@review.artifacts_dir)
+  end
+
   test "describing bez żadnego runa jest oznaczany jako przerwany" do
     @review.update!(status: "describing")
     OrphanedRunsCleanup.call

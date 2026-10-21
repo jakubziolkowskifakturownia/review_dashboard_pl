@@ -18,7 +18,18 @@ class Dashboard
   # Widok pokazuje wyłącznie projekt główny — kolejki różnych projektów mieszały
   # się nie do odróżnienia.
   def inbox_items
-    @inbox_items ||= InboxItem.where(project: main_project).includes(:project).by_urgency.to_a
+    @inbox_items ||= all_inbox_items.select { |item| main_project.inbox_label_visible?(item.pr_labels) }
+  end
+
+  def hidden_inbox_count = all_inbox_items.size - inbox_items.size
+
+  # Labelki z kolejki plus te z filtra — zapisany filtr musi dać się zdjąć także wtedy,
+  # gdy jego labelka zniknęła z kolejki (inaczej ukryłby PR-y bez przycisku do cofnięcia).
+  def inbox_label_options
+    return [] unless main_project
+
+    (all_inbox_items.flat_map(&:pr_labels) + main_project.inbox_shown_labels + main_project.inbox_hidden_labels)
+      .uniq.sort_by(&:downcase)
   end
 
   # Review dla tych PR-ów, żeby kafel wiedział, czy prowadzi do istniejącego review,
@@ -36,7 +47,8 @@ class Dashboard
   # review i następny krok — patrz projects/_inbox_item.
   def attention_reviews
     @attention_reviews ||= begin
-      in_inbox = inbox_items.map(&:pr_number).compact
+      # Pełna kolejka, nie przefiltrowana: PR ukryty filtrem dalej czeka na mnie w GitHubie.
+      in_inbox = all_inbox_items.map(&:pr_number).compact
       waiting.select { |r| r.status.in?(Review::ATTENTION_STATUSES) }
              .reject { |r| r.pr_number.present? && in_inbox.include?(r.pr_number) }
              .sort_by { |r| [ Review::ATTENTION_ORDER.index(r.status), r.updated_at ] }
@@ -72,6 +84,10 @@ class Dashboard
   end
 
   private
+
+  def all_inbox_items
+    @all_inbox_items ||= InboxItem.where(project: main_project).includes(:project).by_urgency.to_a
+  end
 
   def active_runs
     @active_runs ||= ClaudeRun.where(status: "running")

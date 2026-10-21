@@ -378,6 +378,73 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "kolejka pokazuje labelki PR-a i przyciski filtra" do
+    inbox_items(:requested).update!(pr_labels: %w[KSeF])
+
+    get root_path
+
+    assert_select "#inbox_pr_9001 .pr-label", text: "KSeF"
+    assert_select "#inbox_label_filter button", text: /KSeF/
+  end
+
+  test "filtr labelek ukrywa PR-y i mówi ile ukrył" do
+    inbox_items(:requested).update!(pr_labels: %w[KSeF])
+    inbox_items(:commented).update!(pr_labels: %w[WIP])
+    projects(:webapp).update!(inbox_hidden_labels: %w[WIP])
+
+    get root_path
+
+    assert_select "#attention #inbox_pr_9001"
+    assert_select "#attention #inbox_pr_9002", count: 0
+    assert_select "#inbox_label_filter .label-chip-hidden", text: /WIP/
+    assert_select "#inbox_label_filter", text: /ukryto 1/
+  end
+
+  # „Nikt nie czeka" przy aktywnym filtrze byłoby nieprawdą — PR-y czekają, tylko są ukryte.
+  test "pusta kolejka przez filtr nie udaje, że nikt nie czeka" do
+    inbox_items(:requested).update!(pr_labels: %w[WIP])
+    inbox_items(:commented).update!(pr_labels: %w[WIP])
+    projects(:webapp).update!(inbox_hidden_labels: %w[WIP])
+
+    get root_path
+
+    assert_select "#attention .empty", text: /ukrywa filtr labelek/
+  end
+
+  test "klik w labelkę zapisuje filtr projektu głównego i przerysowuje kolejki" do
+    assert_enqueued_with(job: BroadcastDashboardJob) do
+      post cycle_inbox_label_projects_path(label: "WIP"), as: :turbo_stream
+    end
+
+    assert_response :success
+    assert_equal %w[WIP], projects(:webapp).reload.inbox_shown_labels
+    %w[summary queues].each do |target|
+      assert_match %r{<turbo-stream[^>]*action="replace" target="#{target}"}, response.body
+    end
+  end
+
+  test "klik w labelkę bez JS wraca na stronę główną" do
+    post cycle_inbox_label_projects_path(label: "WIP")
+
+    assert_redirected_to projects_path
+    assert_equal %w[WIP], projects(:webapp).reload.inbox_shown_labels
+  end
+
+  test "klik w labelkę bez aktywnego projektu nie wywraca strony" do
+    Project.update_all(archived_at: Time.current)
+
+    post cycle_inbox_label_projects_path(label: "WIP"), as: :turbo_stream
+
+    assert_response :not_found
+  end
+
+  test "pusta labelka nie trafia do filtra" do
+    post cycle_inbox_label_projects_path(label: " "), as: :turbo_stream
+
+    assert_response :unprocessable_entity
+    assert_equal [], projects(:webapp).reload.inbox_shown_labels
+  end
+
   test "select nie przyjmuje zarchiwizowanego projektu" do
     projects(:dashboard).update!(archived_at: Time.current)
 
