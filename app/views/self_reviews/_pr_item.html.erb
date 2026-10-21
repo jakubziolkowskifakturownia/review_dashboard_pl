@@ -1,0 +1,27 @@
+<%# Mój otwarty PR — kafel w kształcie kafla „Czeka na Twoje review” (projects/_inbox_item):
+    cały klika się w prawy panel, a „↗” to jedyne wyjście na GitHuba. Z istniejącym
+    review prowadzi do niego, żeby ten sam PR nie dostał drugiego. %>
+<article class="qitem qitem-open q-own" id="self_pr_<%= project.id %>_<%= pr["number"] %>"
+         data-state="<%= [ "pr", review&.status ].compact.join("|") %>">
+  <div class="qtop">
+    <span class="status-badge status-own"><%= pr["isDraft"] ? "Mój draft" : "Mój PR" %></span>
+    <%= link_to project.name, project_reviews_path(project), class: "qproj", data: { turbo_frame: detail_frame } %>
+    <% if (updated = pr["updatedAt"].presence && Time.zone.parse(pr["updatedAt"])) %>
+      <span class="qwait">ruch <%= short_time_label(updated) %></span>
+    <% end %>
+    <%= link_to "PR ##{pr["number"]} ↗", pr["url"], class: "qext", target: "_blank", rel: "noopener",
+                title: "PR na GitHubie — otwiera się w nowej karcie" %>
+  </div>
+  <% if review %>
+    <%= link_to pr["title"].presence || "PR ##{pr["number"]}", review_path(review),
+                class: "qttl qttl-open", data: { turbo_frame: detail_frame }, title: opens_hint("review") %>
+    <div class="qact"><span class="qgo"><%= review_next_step(review) || "Otwórz review w dashboardzie" %></span></div>
+  <% else %>
+    <%= link_to pr["title"].presence || "PR ##{pr["number"]}", new_project_review_path(project, pr_url: pr["url"], self: "1"),
+                class: "qttl qttl-open", data: { turbo_frame: detail_frame }, title: opens_hint("formularz nowego review") %>
+    <div class="qact"><span class="qgo">Zleć review</span></div>
+  <% end %>
+  <div class="qmeta">
+    <%= [ (review_status_label(review) if review), pr["headRefName"].presence ].compact.join(" · ") %>
+  </div>
+</article>

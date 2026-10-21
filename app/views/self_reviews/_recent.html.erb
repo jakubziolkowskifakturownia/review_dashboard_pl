@@ -1,0 +1,11 @@
+<%# Osobny partial, bo BroadcastDashboardJob przerysowuje go z tła tak jak kolejki —
+    status self review zmienia się w jobach, bez kliknięcia w tej karcie. Czyta tylko
+    lokalne zmienne, bo broadcast nie ma ivarów kontrolera. %>
+<section id="self_recent" class="queue">
+  <h2>Moje self review</h2>
+  <% if reviews.any? %>
+    <%= render partial: "reviews/queue_item", collection: reviews, as: :review, locals: { dashboard: dashboard } %>
+  <% else %>
+    <p class="empty">Jeszcze żadnego — zleć review PR-a albo brancha niżej.</p>
+  <% end %>
+</section>

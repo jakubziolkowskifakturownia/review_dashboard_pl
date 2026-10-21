@@ -1,0 +1,9 @@
+<%# Przełącznik lewej kolumny: cudzy kod vs własny. Zwykłe linki (lewa kolumna nie siedzi
+    w ramce), więc zmienia się cała strona, a adres (/ albo /self_reviews) mówi, która
+    zakładka jest otwarta. %>
+<nav class="dash-tabs" aria-label="Zakładka dashboardu">
+  <%= link_to "👀 Do review", root_path, class: class_names("dash-tab", "is-active": !self_review_tab?),
+              aria: { current: (self_review_tab? ? nil : "page") } %>
+  <%= link_to "🪞 Self review", self_reviews_path, class: class_names("dash-tab", "is-active": self_review_tab?),
+              aria: { current: (self_review_tab? ? "page" : nil) } %>
+</nav>

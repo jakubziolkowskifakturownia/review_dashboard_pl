@@ -14,7 +14,7 @@ class PromptBuilderTest < ActiveSupport::TestCase
   test "każdy szablon promptu wstawia wspólne zasady pisania" do
     templates = Dir.glob(PromptBuilder::TEMPLATES_DIR.join("*.md.erb"))
                    .reject { |path| File.basename(path).start_with?("_") }
-    assert_equal 8, templates.size
+    assert_equal 9, templates.size
     templates.each do |path|
       assert_includes File.read(path), "<%= style %>", "#{File.basename(path)} nie wstawia zasad pisania"
     end
@@ -290,6 +290,63 @@ class PromptBuilderTest < ActiveSupport::TestCase
       assert_not_includes prompt, "gh pr view"
       assert_not_includes prompt, "zadani" + "u: "
     end
+  end
+
+  test "should review the branch diff against the task when a branch comes with a task" do
+    review = Review.create!(project: projects(:webapp), branch: "sw-fix", task_url: "https://tasks.example.com/9",
+                            scope: { "self" => true })
+
+    [ PromptBuilder.describe(review), PromptBuilder.review(review) ].each do |prompt|
+      assert_includes prompt, "`sw-fix`"
+      assert_includes prompt, "origin/master"
+      assert_includes prompt, "https://tasks.example.com/9"
+    end
+    assert_includes PromptBuilder.review(review), "bądź surowy"
+  end
+
+  test "should mark a self review of an own PR as the author's round" do
+    review = reviews(:pr_review)
+    review.update!(scope: { "self" => true })
+
+    prompt = PromptBuilder.review(review)
+    assert_includes prompt, review.pr_url
+    assert_includes prompt, "bądź surowy"
+  end
+
+  test "should build a fix prompt from findings and unmet task criteria" do
+    review = reviews(:pr_review)
+    review.update!(branch: "sl-fix-vat", worktree_path: "/wt/webapp-sl-fix-vat", task_url: "https://tasks.example.com/9",
+                   scope: { "self" => true }, task_fit_status: "ready",
+                   task_criteria: { "criteria" => [ { "id" => "ac1", "text" => "Faktura liczy VAT od netto" },
+                                                    { "id" => "ac2", "text" => "PDF pokazuje stawkę" } ] },
+                   task_fit: { "verdict" => "misses",
+                               "criteria" => [ { "id" => "ac1", "status" => "unmet", "note" => "liczy od brutto" },
+                                               { "id" => "ac2", "status" => "met" } ] })
+    review.findings.create!(priority: "critical", title: "nil w kalkulacji", body: "pada dla pustej pozycji",
+                            file_location: "app/models/invoice.rb:42")
+    review.findings.create!(priority: "minor", title: "obalona uwaga", body: "x", verdict: "refuted")
+
+    prompt = PromptBuilder.self_fix(review)
+
+    assert_includes prompt, "`sl-fix-vat`"
+    assert_includes prompt, "/wt/webapp-sl-fix-vat"
+    assert_includes prompt, "https://tasks.example.com/9"
+    assert_includes prompt, "nil w kalkulacji"
+    assert_includes prompt, "app/models/invoice.rb:42"
+    assert_includes prompt, "pada dla pustej pozycji"
+    assert_includes prompt, "Faktura liczy VAT od netto"
+    assert_includes prompt, "liczy od brutto"
+    assert_not_includes prompt, "PDF pokazuje stawkę"
+    assert_not_includes prompt, "obalona uwaga"
+  end
+
+  test "should warn the fixing agent when the task fit was not checked" do
+    review = Review.create!(project: projects(:webapp), branch: "sw-fix", task_url: "https://tasks.example.com/9",
+                            scope: { "self" => true })
+
+    assert_includes PromptBuilder.self_fix(review), "Zgodności z zadaniem nie sprawdzono"
+    review.update!(task_url: nil)
+    assert_not_includes PromptBuilder.self_fix(review), "Zgodności z zadaniem nie sprawdzono"
   end
 
   test "should build an adversarial verify findings prompt with the finding ids" do

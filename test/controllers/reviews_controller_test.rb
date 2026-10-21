@@ -1145,6 +1145,40 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "skipped", review.task_description_status
   end
 
+  test "should create a self review of a branch with a task and still queue the task description" do
+    assert_enqueued_with(job: DescribeTaskJob) do
+      post project_reviews_path(@project),
+           params: { review: { branch: "sw-fix", task_url: "https://tasks.example.com/9", self_review: "1" },
+                     fetch_task_description: "1" }
+    end
+
+    review = Review.order(:id).last
+    assert review.self_review?
+    assert_equal "queued", review.task_description_status
+  end
+
+  test "should prefill the branch and the self flag from the self review tab" do
+    CommandRunner.stub :run, CommandRunner::Result.new(exit_code: 0, stdout: "", stderr: "", timed_out: false) do
+      get new_project_review_path(@project, branch: "sw-fix", self: "1")
+    end
+
+    assert_select "input[name='review[branch]'][value=sw-fix]"
+    assert_select "input[type=checkbox][name='review[self_review]'][checked]"
+  end
+
+  test "should render a copyable fix prompt instead of the decision form for a reviewed self review" do
+    review = reviews(:pr_review)
+    review.update!(status: "reviewed", branch: "sl-fix-vat", scope: { "self" => true })
+    review.findings.create!(priority: "critical", title: "nil w kalkulacji", body: "pada dla pustej pozycji",
+                            file_location: "app/models/invoice.rb:42")
+
+    get review_path(review)
+
+    assert_select "form button[name=verdict]", count: 0
+    assert_select "#self_fix_prompt textarea", text: /nil w kalkulacji/
+    assert_select "#self_fix_prompt [data-action='clipboard#copy']"
+  end
+
   test "should suggest existing worktree branches in the new review form" do
     listing = "worktree #{@project.repo_path}\nbranch refs/heads/master\n\n" \
               "worktree /tmp/webapp-sw-selfreview\nbranch refs/heads/sw-selfreview\n"

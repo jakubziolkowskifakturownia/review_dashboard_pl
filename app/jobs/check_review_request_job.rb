@@ -12,7 +12,9 @@ class CheckReviewRequestJob < ApplicationJob
 
   def perform(review, github: GithubClient.new)
     # Status mógł się zmienić między kolejkowaniem a startem (np. user odpalił followup).
-    return unless Review::CHECKABLE_STATUSES.include?(review.status) && review.github_actions_available?
+    # pr_url, nie github_actions_available?: selfreview własnego PR-a nic na GitHuba nie
+    # wysyła, ale stan końcowy (merged/closed) dalej ma do niego dojść.
+    return unless Review::CHECKABLE_STATUSES.include?(review.status) && review.pr_url.present?
 
     info = pr_review_state(review, github)
 

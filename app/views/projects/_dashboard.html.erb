@@ -13,31 +13,11 @@
 <%= turbo_stream_from :dashboard %>
 <div class="<%= split_view? ? "dash" : "dash dash-single" %>" data-controller="detail-pane">
   <div class="dash-main">
-    <div class="pagehead">
-      <h1>Review dashboard</h1>
-      <%= render "projects/summary", dashboard: current_dashboard %>
-    </div>
-
-    <%# Kolejki pokazują wyłącznie projekt główny — przełącza go switcher u góry albo
-        radio na karcie projektu; odpowiedź turbo_stream podmienia #summary, #queues
-        i #projects. %>
-    <%= render "projects/queues", dashboard: current_dashboard %>
-
-    <%= render "projects/grid" %>
-
-    <% if archived_projects.any? %>
-      <%# Zwinięte: archiwum jest potrzebne raz na kwartał i nie może wyglądać jak druga,
-          równorzędna lista projektów. %>
-      <details id="archived_projects">
-        <summary>Zarchiwizowane (<%= archived_projects.size %>)</summary>
-        <% archived_projects.each do |project| %>
-          <div class="archrow" id="project_row_<%= project.id %>">
-            <%= link_to project.name, project_reviews_path(project), data: { turbo_frame: detail_frame } %>
-            <span class="muted"><%= review_counts[project.id][:total] %> review</span>
-            <%= button_to "Przywróć", unarchive_project_path(project), class: "btn" %>
-          </div>
-        <% end %>
-      </details>
+    <%= render "projects/tabs" %>
+    <% if self_review_tab? %>
+      <%= render "self_reviews/board", board: self_review_board %>
+    <% else %>
+      <%= render "projects/review_tab" %>
     <% end %>
   </div>
 

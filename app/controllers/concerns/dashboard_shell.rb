@@ -10,7 +10,7 @@ module DashboardShell
   extend ActiveSupport::Concern
 
   included do
-    helper_method :current_dashboard, :archived_projects, :review_counts
+    helper_method :current_dashboard, :archived_projects, :review_counts, :self_review_board
   end
 
   private
@@ -18,6 +18,16 @@ module DashboardShell
   # Same liczby siedzą w Dashboard, bo z tego samego stanu renderuje kolejki
   # BroadcastDashboardJob.
   def current_dashboard = @current_dashboard ||= Dashboard.new
+
+  # Lewa kolumna zakładki self review. Leniwie jak reszta: render w zakładce
+  # „Do review" nie płaci za `gh pr list` i spawny gita.
+  def self_review_board = @self_review_board ||= SelfReviewBoard.new
+
+  # Zakładkę zapamiętuje ciasteczko, bo F5 na review otwartym z prawego panelu ląduje
+  # pod /reviews/:id i bez niego lewa kolumna wracałaby do kolejek.
+  def remember_dashboard_tab(tab)
+    cookies.permanent[ViewModeHelper::TAB_COOKIE] = tab
+  end
 
   # to_a: partial pyta o any?, size i each — na relacji to byłyby trzy zapytania.
   def archived_projects = @archived_projects ||= Project.archived.by_name.to_a

@@ -112,7 +112,10 @@ class ReviewsController < ApplicationController
     @review = @project.reviews.new(claude_config: @project.default_claude_config,
                                    model: @project.default_model,
                                    effort: @project.default_effort,
-                                   pr_url: params[:pr_url], task_url: params[:task_url])
+                                   pr_url: params[:pr_url], task_url: params[:task_url], branch: params[:branch])
+    # Zakładka self review zamawia review z zaznaczoną flagą — formularz pokazuje ją
+    # jako checkbox, żeby dało się ją świadomie odznaczyć.
+    @self_review_checked = params[:self] == "1"
     # Podpowiedzi pola branch: istniejące worktree, żeby selfreview zaczynało się
     # od wyboru z listy, a nie od przepisywania nazwy brancha z terminala.
     @worktree_branches = WorktreeManager.new(@project).existing_branches
@@ -123,9 +126,10 @@ class ReviewsController < ApplicationController
     @review.claude_config = @review.effective_claude_config
     # Status przed zapisem, nie update! po nim: rekord jest świeży, a każdy update!
     # na Review to pełny broadcast panelu, którego nikt jeszcze nie ogląda.
-    # !self_review?: selfreview nie ma skąd wziąć opisu zadania (ani PR-a, ani
+    # task_source?: sam branch nie ma skąd wziąć opisu zadania (ani PR-a, ani
     # zadania), więc domyślnie zaznaczony checkbox nie może zakolejkować sesji.
-    @review.task_description_status = "queued" if params[:fetch_task_description] == "1" && !@review.self_review?
+    # Selfreview z zadaniem dostaje opis, bo z niego bramka zgodności liczy AC.
+    @review.task_description_status = "queued" if params[:fetch_task_description] == "1" && @review.task_source?
     if @review.save
       DescribeReviewJob.perform_later(@review)
       DescribeTaskJob.perform_later(@review) if @review.task_description_status == "queued"
@@ -133,6 +137,7 @@ class ReviewsController < ApplicationController
     else
       flash.now[:error] = create_error_message
       @worktree_branches = WorktreeManager.new(@project).existing_branches
+      @self_review_checked = @review.scope.to_h["self"] == true
       render :new, status: :unprocessable_entity
     end
   end
@@ -158,9 +163,7 @@ class ReviewsController < ApplicationController
 
     # Status przestawiamy tu, nie w jobie: między kolejkowaniem a startem workera
     # potrafi minąć kilkanaście minut i panel nie może wtedy wyglądać jak przed kliknięciem.
-    @review.update!(scope: { "areas" => Array(params[:areas]), "notes" => params[:notes].to_s,
-                             "inline_comments" => params[:inline_comments] == "1" },
-                    status: "reviewing")
+    @review.start!(areas: params[:areas], notes: params[:notes], inline_comments: params[:inline_comments] == "1")
     RunReviewJob.perform_later(@review)
     redirect_to @review
   end
@@ -349,6 +352,6 @@ class ReviewsController < ApplicationController
   end
 
   def review_params
-    params.require(:review).permit(:pr_url, :task_url, :branch, :claude_config, :model, :effort)
+    params.require(:review).permit(:pr_url, :task_url, :branch, :claude_config, :model, :effort, :self_review)
   end
 end

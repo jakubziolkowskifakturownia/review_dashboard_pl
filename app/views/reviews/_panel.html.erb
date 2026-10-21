@@ -222,6 +222,8 @@
         <% end %>
       <% end %>
     </div>
+  <% elsif review.status == "reviewed" && review.self_review? %>
+    <%= render "reviews/self_fix_prompt", review: review %>
   <% elsif review.status == "reviewed" %>
     <div class="card"><p>Brak PR-a — wynik zostaje w dashboardzie (przyciski GitHub nieaktywne).</p></div>
   <% end %>

@@ -41,6 +41,17 @@ class DecisionsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to review_path(@review)
   end
 
+  test "should refuse sending a decision to GitHub for a self review" do
+    @review.update!(scope: { "self" => true })
+    submitted = []
+    GithubClient.stub :new, fake_client(submitted) do
+      post review_decision_path(@review), params: { verdict: "comment", body: "x" }
+    end
+
+    assert_empty submitted
+    assert_equal "reviewed", @review.reload.status
+  end
+
   test "po decyzji panel pokazuje wyrenderowaną treść decyzji" do
     @review.update!(status: "decided", decision: "approve", decision_body: "**Zatwierdzam** bez uwag", decided_at: Time.current)
     get review_path(@review)

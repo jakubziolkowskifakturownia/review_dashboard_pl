@@ -4,6 +4,7 @@ class ProjectsController < ApplicationController
   before_action :set_project, only: %i[edit update archive unarchive test_intum]
 
   def index
+    remember_dashboard_tab("review")
     refresh_on_visit
   end
 

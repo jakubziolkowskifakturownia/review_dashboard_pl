@@ -1,0 +1,10 @@
+<%# Wynik selfreview: zamiast decyzji na GitHubie prompt dla agenta, który poprawi kod.
+    readonly, bo karta siedzi w panelu przerysowywanym broadcastem przy każdym zapisie
+    review — ręczna edycja zniknęłaby bez ostrzeżenia. Dopiski robi się po wklejeniu. %>
+<div class="card" id="self_fix_prompt" data-controller="clipboard">
+  <h2>🛠 Prompt dla agenta poprawiającego</h2>
+  <p class="muted">Skopiuj i wklej sesji, która pracuje na tym branchu. Obalone uwagi są pominięte;
+    prompt składa się od nowa po każdej zmianie review.</p>
+  <textarea rows="16" readonly class="prompt-copy" data-clipboard-target="source"><%= PromptBuilder.self_fix(review) %></textarea>
+  <button type="button" class="btn btn-primary" data-clipboard-target="button" data-action="clipboard#copy">📋 Kopiuj prompt</button>
+</div>

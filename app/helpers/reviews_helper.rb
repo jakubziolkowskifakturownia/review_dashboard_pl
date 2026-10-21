@@ -29,7 +29,12 @@ module ReviewsHelper
     Review::OVERRIDABLE_STATUSES.map { |status| [ "#{STATUS_LABELS.fetch(status)} (#{status})", status ] }
   end
 
-  def review_next_step(review) = NEXT_STEPS[review.status]
+  # Selfreview po review nie ma decyzji do wysłania — jego wynikiem jest prompt poprawek.
+  def review_next_step(review)
+    return "Skopiuj prompt poprawek dla agenta" if review.status == "reviewed" && review.self_review?
+
+    NEXT_STEPS[review.status]
+  end
 
   # Odcisk stanu kafla dla podświetlenia „zmieniło się samo": porównujemy TO, co
   # w kaflu znaczy robotę do zrobienia, a nie cały HTML. Inaczej „czeka 14 min"
@@ -82,6 +87,8 @@ module ReviewsHelper
   def findings_noun(count) = pluralize_pl(count, "znalezisko", "znaleziska", "znalezisk")
 
   def manual_checks_noun(count) = pluralize_pl(count, "punkt", "punkty", "punktów")
+
+  def commits_noun(count) = pluralize_pl(count, "commit", "commity", "commitów")
 
   # 1 / 2-4 (poza 12-14) / reszta - jedna reguła dla każdego rzeczownika w tym helperze.
   def pluralize_pl(count, one, few, many)

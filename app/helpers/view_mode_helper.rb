@@ -14,6 +14,12 @@ module ViewModeHelper
 
   def split_view? = view_mode == "split"
 
+  # Zakładka lewej kolumny: kolejki cudzego kodu albo self review. Ustawiają ją wejścia
+  # na / i /self_reviews (DashboardShell#remember_dashboard_tab), czyta każdy render.
+  TAB_COOKIE = :dashboard_tab
+
+  def self_review_tab? = cookies[TAB_COOKIE] == "self"
+
   # Cel nawigacji dla kafli i linków projektów. W trybie klasycznym nil, bo brak
   # atrybutu data-turbo-frame to zwykłe przejście na pełną stronę — dokładnie to,
   # co ten tryb obiecuje.

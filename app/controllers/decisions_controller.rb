@@ -6,6 +6,7 @@ class DecisionsController < ApplicationController
     verdict = params[:verdict]
     return render_error("Nieznana decyzja: #{verdict}") unless Review::DECISIONS.include?(verdict)
     return render_error("Ten review nie ma powiązanego PR-a — nie ma gdzie wysłać decyzji") if @review.pr_url.blank?
+    return render_error("Self review nie wysyła decyzji na GitHuba — skopiuj prompt dla agenta poprawiającego") if @review.self_review?
 
     if (gate_error = gate_error_for(verdict))
       return render_error(gate_error)
