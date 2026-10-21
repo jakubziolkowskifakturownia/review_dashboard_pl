@@ -1,0 +1,7 @@
+<%# Summary też, bo licznik „czeka na Twoje review" liczy kolejkę po filtrze. %>
+<%= turbo_stream.replace "summary", method: :morph do %>
+  <%= render "projects/summary", dashboard: current_dashboard %>
+<% end %>
+<%= turbo_stream.replace "queues", method: :morph do %>
+  <%= render "projects/queues", dashboard: current_dashboard %>
+<% end %>

@@ -111,6 +111,35 @@ class Project < ApplicationRecord
     update!(main_at: Time.current)
   end
 
+  # Filtr kolejki „Czeka na Twoje review" po labelkach PR-a. Siedzi w bazie, a nie
+  # w requeście, bo kolejkę przerysowuje też BroadcastDashboardJob, który requestu
+  # nie ma; baza jest per instancja, więc to i tak ustawienie jednej osoby.
+  def inbox_label_state(name)
+    if inbox_hidden_labels.include?(name) then :hidden
+    elsif inbox_shown_labels.include?(name) then :shown
+    end
+  end
+
+  # Jeden przycisk na labelkę zamiast dwóch list do wyklikania: pokaż → ukryj → bez filtra.
+  def cycle_inbox_label!(name)
+    shown = inbox_shown_labels - [ name ]
+    hidden = inbox_hidden_labels - [ name ]
+    case inbox_label_state(name)
+    when nil then shown += [ name ]
+    when :shown then hidden += [ name ]
+    end
+    update!(inbox_shown_labels: shown, inbox_hidden_labels: hidden)
+  end
+
+  # „Ukryj" wygrywa z „pokaż": labelka typu WIP ma wyciąć PR niezależnie od tematu.
+  def inbox_label_visible?(labels)
+    return false if labels.intersect?(inbox_hidden_labels)
+
+    inbox_shown_labels.empty? || labels.intersect?(inbox_shown_labels)
+  end
+
+  def inbox_label_filter? = inbox_shown_labels.any? || inbox_hidden_labels.any?
+
   def archived?
     archived_at.present?
   end

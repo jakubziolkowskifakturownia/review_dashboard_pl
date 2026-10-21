@@ -10,6 +10,23 @@
       sesja) są niżej, bo to moja robota, a nie cudze oczekiwanie. %>
   <section id="attention" class="queue">
     <h2>Czeka na Twoje review</h2>
+    <% if dashboard.inbox_label_options.any? %>
+      <%# Klik przechodzi cyklem: pokaż → ukryj → bez filtra (Project#cycle_inbox_label!). %>
+      <div id="inbox_label_filter" class="label-filter">
+        <% dashboard.inbox_label_options.each do |label| %>
+          <% state = dashboard.main_project.inbox_label_state(label) %>
+          <%= button_to cycle_inbox_label_projects_path(label: label),
+                        class: class_names("label-chip", "label-chip-#{state}" => state),
+                        title: { nil => "kliknij: pokaż tylko z tą labelką", shown: "kliknij: ukryj z tą labelką",
+                                 hidden: "kliknij: zdejmij filtr" }[state] do %>
+            <%= { shown: "✓ ", hidden: "✕ " }[state] %><%= label %>
+          <% end %>
+        <% end %>
+        <% if dashboard.hidden_inbox_count.positive? %>
+          <span class="muted">ukryto <%= dashboard.hidden_inbox_count %></span>
+        <% end %>
+      </div>
+    <% end %>
     <% if dashboard.inbox_items.any? %>
       <%= render partial: "projects/inbox_item", collection: dashboard.inbox_items, as: :item,
                  locals: { dashboard: dashboard } %>
@@ -19,6 +36,8 @@
           Nie ma żadnego aktywnego projektu — dodaj pierwszy poniżej.
         <% elsif dashboard.main_project.repo_url.blank? %>
           Projekt <%= dashboard.main_project.name %> nie ma adresu repo na GitHubie — bez niego nie ma czego pytać.
+        <% elsif dashboard.hidden_inbox_count.positive? %>
+          Wszystkie PR-y z kolejki ukrywa filtr labelek.
         <% elsif dashboard.inbox_checked_at.nil? %>
           GitHub jeszcze nie odpytany. Odświeżenie chodzi w tle — wróć tu za chwilę.
         <% else %>

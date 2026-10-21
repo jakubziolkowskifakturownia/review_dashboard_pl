@@ -83,7 +83,8 @@ class GithubInbox
   def item_for(pr, reason:, signal_at:, actor:, body: nil)
     { pr_number: pr["number"], title: pr["title"], url: pr["url"], author: author_of(pr),
       reason: reason, signal_at: signal_at, actor: actor,
-      task_url: TaskLink.find(body, prefix: @project_prefix) }
+      task_url: TaskLink.find(body, prefix: @project_prefix),
+      pr_labels: Array(pr["labels"]).map { |label| label["name"] } }
   end
 
   # Opis PR-a pobieramy tylko dla prośb o review — przy „odezwał się" przychodzi
