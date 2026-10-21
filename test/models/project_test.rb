@@ -311,4 +311,40 @@ class ProjectTest < ActiveSupport::TestCase
                                                  "reject" => "Popraw:\r\n{{blocking_list}}\r\n" } })
     assert_equal({ "decision" => { "reject" => "Popraw:\n{{blocking_list}}" } }, project.reload.templates)
   end
+
+  test "klik w labelkę kolejki przechodzi cyklem: pokaż → ukryj → bez filtra" do
+    project = projects(:webapp)
+    states = 3.times.map do
+      project.cycle_inbox_label!("WIP")
+      project.reload.inbox_label_state("WIP")
+    end
+    assert_equal [ :shown, :hidden, nil ], states
+    assert_equal({ shown: [], hidden: [] }, { shown: project.inbox_shown_labels, hidden: project.inbox_hidden_labels })
+  end
+
+  test "bez filtra labelek widać każdy PR, także bez labelek" do
+    project = projects(:webapp)
+    assert project.inbox_label_visible?([])
+    assert project.inbox_label_visible?(%w[KSeF])
+  end
+
+  test "pokaż: widać PR z którąkolwiek z wybranych labelek" do
+    project = projects(:webapp)
+    project.update!(inbox_shown_labels: %w[KSeF magazyn])
+    assert_equal [ true, true, false, false ],
+                 [ %w[KSeF], %w[magazyn WIP], %w[WIP], [] ].map { |labels| project.inbox_label_visible?(labels) }
+  end
+
+  test "ukryj wygrywa z pokaż" do
+    project = projects(:webapp)
+    project.update!(inbox_shown_labels: %w[KSeF], inbox_hidden_labels: %w[WIP])
+    assert_equal [ true, false, false, true ],
+                 [ %w[KSeF], %w[KSeF WIP], %w[WIP], %w[KSeF inne] ].map { |labels| project.inbox_label_visible?(labels) }
+  end
+
+  test "sam filtr ukryj przepuszcza PR-y bez labelek" do
+    project = projects(:webapp)
+    project.update!(inbox_hidden_labels: %w[WIP])
+    assert_equal [ true, true, false ], [ [], %w[KSeF], %w[WIP] ].map { |labels| project.inbox_label_visible?(labels) }
+  end
 end

@@ -19,6 +19,23 @@ class ProjectsController < ApplicationController
     end
   end
 
+  # Broadcast dosyła ten sam stan do innych kart z otwartą stroną wejściową —
+  # filtr jest ustawieniem instancji, nie karty.
+  def cycle_inbox_label
+    label = params[:label].to_s.strip
+    return head :unprocessable_entity if label.empty?
+
+    project = Project.main
+    return head :not_found unless project
+
+    project.cycle_inbox_label!(label)
+    BroadcastDashboardJob.perform_later
+    respond_to do |format|
+      format.turbo_stream
+      format.html { redirect_to projects_path }
+    end
+  end
+
   # Kolejka odświeża się sama co GithubInbox::STALE_AFTER; ten przycisk pomija okno,
   # gdy wiem, że ktoś właśnie poprosił mnie o review i nie chcę czekać.
   def refresh_inbox

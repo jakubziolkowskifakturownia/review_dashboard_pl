@@ -47,4 +47,9 @@
           (item.actor.presence if item.actor.present? && item.actor != item.author)&.then { |a| "ostatnio: #{a}" },
           review&.branch&.presence ].compact.join(" · ") %>
   </div>
+  <% if item.pr_labels.any? %>
+    <div class="pr-labels">
+      <% item.pr_labels.each do |label| %><span class="pr-label"><%= label %></span><% end %>
+    </div>
+  <% end %>
 </article>

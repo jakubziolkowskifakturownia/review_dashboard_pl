@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_15_110001) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_21_073748) do
   create_table "claude_runs", force: :cascade do |t|
     t.integer "cache_creation_tokens"
     t.integer "cache_read_tokens"
@@ -71,6 +71,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_15_110001) do
     t.string "actor"
     t.string "author"
     t.datetime "created_at", null: false
+    t.json "pr_labels", default: [], null: false
     t.integer "pr_number"
     t.integer "project_id", null: false
     t.string "reason"
@@ -104,6 +105,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_15_110001) do
     t.string "docs_path", default: "doc/llm"
     t.string "headline_mode", default: "pr", null: false
     t.datetime "inbox_checked_at"
+    t.json "inbox_hidden_labels", default: [], null: false
+    t.json "inbox_shown_labels", default: [], null: false
     t.string "intum_api_token"
     t.datetime "main_at"
     t.string "name"
