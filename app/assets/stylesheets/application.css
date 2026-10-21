@@ -562,3 +562,15 @@ code.inline { background: var(--line-soft); padding: 2px 6px; border-radius: 4px
 .task-fit-badge-misses { background: var(--err-bg); color: var(--danger); }
 .task-fit-badge-partial { background: var(--wait-bg); color: var(--warn); }
 .task-comments-stale { padding: 10px 14px; margin: 8px 0; border-radius: 8px; border-left: 6px solid var(--warn); background: var(--wait-bg); color: var(--warn); }
+
+/* Zakładka self review i prompt dla agenta poprawiającego. */
+.self-list { list-style: none; padding: 0; margin: 0 0 12px; }
+.self-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.self-list li .btn { margin-left: auto; }
+.prompt-copy { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; margin-bottom: 8px; }
+.dash-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 12px; }
+.dash-tab { padding: 8px 14px; border-bottom: 2px solid transparent; margin-bottom: -1px; color: var(--muted); text-decoration: none; font-weight: 600; }
+.dash-tab:hover { color: var(--fg); }
+.dash-tab.is-active { color: var(--fg); border-bottom-color: var(--accent); }
+.qitem.q-own { border-left-color: var(--accent); }
+.status-own { background: light-dark(#dbeafe, #1e3a8a); color: var(--accent-strong); }

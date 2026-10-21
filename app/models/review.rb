@@ -127,7 +127,8 @@ class Review < ApplicationRecord
   validates :decision, inclusion: { in: DECISIONS }, allow_nil: true
   # Branch trafia do komend shellowych (bin/worktree-docker) — przepuszczamy
   # tylko znaki legalne w nazwach gitowych branchy.
-  validates :branch, format: { with: %r{\A[\w./-]+\z}, message: "zawiera niedozwolone znaki" }, allow_blank: true
+  BRANCH_FORMAT = %r{\A[\w./-]+\z}
+  validates :branch, format: { with: BRANCH_FORMAT, message: "zawiera niedozwolone znaki" }, allow_blank: true
   validates :model, inclusion: { in: MODELS }, allow_blank: true
   validates :effort, inclusion: { in: EFFORTS }, allow_blank: true
   # Ta sama wartość jest już utwardzona po stronie Project (default_claude_config);
@@ -188,12 +189,16 @@ class Review < ApplicationRecord
     due.each { |review| CheckReviewRequestJob.perform_later(review) }
     due.size
   end
-  # Review powiązane z czymś na zewnątrz (PR albo zadanie) — w odróżnieniu od
-  # selfreview, które jest prywatną rundą przed wystawieniem PR-a i nie wchodzi
-  # do kolejek ani liczników „czeka na Ciebie" na stronie wejściowej.
-  scope :outward, -> {
-    where("(pr_url IS NOT NULL AND pr_url <> '') OR (task_url IS NOT NULL AND task_url <> '')")
-  }
+  # SQL-owy odpowiednik self_review? — jedna definicja dla zakładki self review
+  # i dla kolejek, które selfreview pomijają. COALESCE, bo scope bez klucza "self"
+  # daje NULL, a NOT(NULL) wycinałoby z outward każde zwykłe review.
+  SELF_REVIEW_SQL = "(COALESCE(json_extract(scope, '$.self'), 0) = 1 OR " \
+                    "((pr_url IS NULL OR pr_url = '') AND (task_url IS NULL OR task_url = '')))".freeze
+  scope :self_reviews, -> { where(SELF_REVIEW_SQL) }
+  # Review powiązane z czymś na zewnątrz (cudzy PR albo zadanie) — w odróżnieniu od
+  # selfreview, które jest prywatną rundą autora i nie wchodzi do kolejek ani
+  # liczników „czeka na Ciebie" na stronie wejściowej.
+  scope :outward, -> { where.not(SELF_REVIEW_SQL) }
 
   # prepend: true — callbacki dependent: :destroy z has_many wyżej kasują
   # claude_runs wcześniej; bez prependa nie byłoby już czego ubijać.
@@ -218,8 +223,10 @@ class Review < ApplicationRecord
   end
 
   # Bez PR-a nie ma czego approve'ować na GitHubie — wynik zostaje w dashboardzie.
+  # Selfreview też nic tam nie wysyła: GitHub odrzuca approve i request changes
+  # na własnym PR-ze, a wynik i tak trafia do agenta poprawiającego (SelfFixPrompt).
   def github_actions_available?
-    pr_url.present?
+    pr_url.present? && !self_review?
   end
 
   # Formularz decyzji jest widoczny dokładnie wtedy — ten sam warunek steruje
@@ -265,10 +272,30 @@ class Review < ApplicationRecord
     pr_url.presence || task_url.presence || (branch.present? ? "branch #{branch}" : nil)
   end
 
-  # Prywatna runda review własnego brancha, zanim powstanie PR — celowo bez
-  # kolumny: brak obu linków JEST definicją selfreview (walidacja wymusza branch).
+  # Prywatna runda review własnego kodu: jawna flaga w scope (zakładka self review,
+  # checkbox w formularzu) albo sam branch bez PR-a i zadania. Flaga, a nie
+  # wyliczenie z linków, bo zadanie przy selfreview jest potrzebne jako kryterium
+  # oceny, a własnego PR-a nie odróżnisz od cudzego po samym adresie.
   def self_review?
-    pr_url.blank? && task_url.blank?
+    scope&.dig("self") == true || !task_source?
+  end
+
+  # Checkbox formularza nowego review — flaga żyje w scope, bo nie ma dla niej kolumny.
+  def self_review=(value)
+    self.scope = scope.to_h.merge("self" => ActiveModel::Type::Boolean.new.cast(value) == true)
+  end
+
+  # Skąd opis zadania może wziąć link: z PR-a (jego opis) albo wprost z zadania.
+  def task_source?
+    pr_url.present? || task_url.present?
+  end
+
+  # Start review z wybranymi obszarami. Flagę self przenosimy, bo scope to jeden
+  # json nadpisywany w całości, a jej utrata zamieniłaby selfreview w zwykłe review.
+  def start!(areas:, notes:, inline_comments:)
+    update!(scope: { "areas" => Array(areas), "notes" => notes.to_s, "inline_comments" => inline_comments }
+                     .merge(scope.to_h.slice("self")),
+            status: "reviewing")
   end
 
   # Weryfikacja poprawek ma sens tylko po wysłanej decyzji i tylko gdy wiemy, na jaki

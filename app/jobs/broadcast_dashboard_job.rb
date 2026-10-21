@@ -17,6 +17,11 @@ class BroadcastDashboardJob < ApplicationJob
     # Piguły u góry liczą to samo co kolejki — bez nich licznik „4 czeka" kłamałby
     # do pierwszego przeładowania strony.
     replace("summary", "projects/summary", dashboard)
+    # Sekcja „Moje self review” zakładki self review — tylko z bazy. Na otwartej zakładce
+    # „Do review” celu nie ma w DOM i Turbo po prostu pomija podmianę.
+    Turbo::StreamsChannel.broadcast_replace_to(STREAM, target: "self_recent", partial: "self_reviews/recent",
+                                               locals: { reviews: SelfReviewBoard.recent_reviews, dashboard: dashboard },
+                                               attributes: { method: :morph })
   rescue StandardError => e
     # Broadcast to kosmetyka (odświeżenie strony pokaże stan) — jego błąd nie może
     # wywracać kolejki jobów ani powtarzać się w nieskończoność.

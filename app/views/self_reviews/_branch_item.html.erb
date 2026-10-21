@@ -1,0 +1,26 @@
+<%# Lokalny branch bez PR-a — kafel jak _pr_item, tylko bez wyjścia na GitHuba (nie ma
+    tam jeszcze czego oglądać). id z nazwą brancha przez parameterize: ukośnik i kropka
+    z nazwy gita nie są legalne w selektorze CSS. %>
+<article class="qitem qitem-open q-branch" id="self_branch_<%= project.id %>_<%= branch.name.parameterize(separator: "_") %>"
+         data-state="<%= [ "branch", branch.ahead, review&.status ].compact.join("|") %>">
+  <div class="qtop">
+    <span class="status-badge status-branch">Branch</span>
+    <%= link_to project.name, project_reviews_path(project), class: "qproj", data: { turbo_frame: detail_frame } %>
+    <% if branch.committed_at %>
+      <span class="qwait">commit <%= short_time_label(branch.committed_at) %></span>
+    <% end %>
+  </div>
+  <% if review %>
+    <%= link_to branch.name, review_path(review), class: "qttl qttl-open",
+                data: { turbo_frame: detail_frame }, title: opens_hint("review") %>
+    <div class="qact"><span class="qgo"><%= review_next_step(review) || "Otwórz review w dashboardzie" %></span></div>
+  <% else %>
+    <%= link_to branch.name, new_project_review_path(project, branch: branch.name, self: "1"), class: "qttl qttl-open",
+                data: { turbo_frame: detail_frame }, title: opens_hint("formularz nowego review") %>
+    <div class="qact"><span class="qgo">Zleć review</span></div>
+  <% end %>
+  <div class="qmeta">
+    <%= [ (review_status_label(review) if review), "#{branch.ahead} #{commits_noun(branch.ahead)} ponad gałąź główną",
+          ("worktree" if branch.worktree_path) ].compact.join(" · ") %>
+  </div>
+</article>

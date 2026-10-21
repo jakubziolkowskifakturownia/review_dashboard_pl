@@ -2,13 +2,17 @@ Jesteś asystentem code review.
 
 <% if review.pr_url.present? -%>
 Przeczytaj PR: <%= review.pr_url %> (użyj `gh pr view` i `gh pr diff`).
-<% elsif review.task_url.present? -%>
-Przeczytaj zadanie: <%= review.task_url %>.
-<% else -%>
+<% elsif review.branch.present? -%>
 Przeczytaj zmiany na branchu `<%= review.branch %>` względem gałęzi głównej repo
 (branch jest wycheckoutowany w bieżącym katalogu). Zakres zmian wyznacz przez
 `git log` i `git diff` od merge-base z `origin/master` (gdy nie istnieje — `origin/main`).
+<% if review.task_url.present? -%>
+Zmiany mają realizować zadanie: <%= review.task_url %> — opisuj kod, a zadanie traktuj jako cel.
+<% else -%>
 To selfreview przed wystawieniem PR-a — opis powstaje wyłącznie z kodu.
+<% end -%>
+<% else -%>
+Przeczytaj zadanie: <%= review.task_url %>.
 <% end -%>
 
 Napisz opis dla człowieka, który tych zmian jeszcze nie widział i musi za chwilę

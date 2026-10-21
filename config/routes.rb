@@ -5,6 +5,10 @@ Rails.application.routes.draw do
   # przeglądarki, nie zasób w bazie, stąd singular resource bez modelu.
   resource :view_mode, only: :update
 
+  # Zakładka self review zbiera własny kod ze wszystkich projektów, więc nie siedzi
+  # pod żadnym z nich.
+  resources :self_reviews, only: :index
+
   # Zagnieżdżamy tylko to, co bez projektu nie ma sensu. Review należy do jednego
   # projektu na stałe, więc :project_id w adresie pokazu byłby redundantny — a jego
   # brak zostawia wszystkie akcje pojedynczego review nietknięte.

@@ -255,8 +255,8 @@ padnięte `gh` nigdy jej nie czyści (pusty wynik wyglądałby jak „nikt nie c
 Kafel PR-a bez review w dashboardzie prowadzi do formularza z wypełnionym `pr_url`
 i linkiem do zadania wyłuskanym z opisu PR-a.
 
-Własne PR-y nie znikają z apki — review swojego kodu zakładasz normalnie przez
-**+ Nowy review**, tylko nie zaśmieca ono kolejki „czeka na Twoje review".
+Własne PR-y nie znikają z apki — mają osobną zakładkę [🪞 Self review](#self-review)
+i nie zaśmiecają kolejki „czeka na Twoje review".
 
 ---
 
@@ -271,6 +271,32 @@ Własne PR-y nie znikają z apki — review swojego kodu zakładasz normalnie pr
 
 Artefakty każdego review (result.json, logi sesji, logi Playwright) leżą
 w `storage/reviews/<id>/` i znikają razem z review.
+
+## Self review
+
+Review własnego kodu, zanim zobaczy go ktoś inny. Zakładka **🪞 Self review** w topbarze
+(`/self_reviews`) pokazuje dla każdego aktywnego projektu:
+
+| Sekcja | Skąd | Uwagi |
+|---|---|---|
+| **Moje otwarte PR-y** | `gh pr list --author @me` w repo projektu | padnięte `gh` pokazuje błąd przy projekcie, reszta strony działa |
+| **Lokalne branche bez PR-a** | `git for-each-ref` w `repo_path` + liczba commitów ponad `origin/master` (albo `origin/main`) | bez fetcha, więc stan gałęzi głównej z ostatniego fetcha w repo; branche z otwartym PR-em wypadają; max 30 najświeższych |
+
+„Zleć review” otwiera formularz z wypełnionym PR-em albo branchem i zaznaczonym
+**🪞 Self review**; istniejące review linkuje się zamiast zamawiać drugie. Link do zadania
+można dopisać — wtedy review liczy diff brancha, a zadanie jest kryterium oceny (opis
+zadania i bramka zgodności działają normalnie).
+
+Czym self review różni się od zwykłego:
+
+- **nic nie idzie na GitHuba** — GitHub i tak odrzuca approve i request changes na własnym PR-ze;
+- **wynik to prompt dla agenta poprawiającego**: karta z polem tekstowym i „📋 Kopiuj prompt”
+  (branch, worktree, zadanie, niespełnione punkty zadania, uwagi z review bez obalonych
+  przez weryfikację zasadności). Szablon: `app/prompts/self_fix.md.erb`;
+- **nie wchodzi do kolejek** strony wejściowej (`Review.outward`).
+
+Flaga siedzi w `reviews.scope` (`"self": true`), więc bez migracji. Review samego brancha
+(bez PR-a i zadania) jest self review zawsze, także bez flagi.
 
 ## Zgodność z zadaniem (bramka przed Approve)
 
@@ -301,8 +327,9 @@ a reviewer ocenił spójność diffu. Dashboard rozlicza z tego osobno:
    rusza samo: followup konfrontujący odpalasz przyciskiem, prompt ma już cudze review.
 
 Ręczne odpalenie: przycisk „Sprawdź zgodność z zadaniem” na panelu. Bez opisu zadania
-(brak `task_url`, selfreview) bramki nie ma: panel mówi „Zgodność z zadaniem
-niesprawdzona”, formularz działa jak dotąd.
+(brak `task_url`, selfreview samego brancha) bramki nie ma: panel mówi „Zgodność z zadaniem
+niesprawdzona”, formularz działa jak dotąd. Selfreview z linkiem do zadania ma bramkę
+jak każde inne review — niespełnione punkty trafiają do promptu poprawek.
 
 ---
 

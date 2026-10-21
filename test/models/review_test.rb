@@ -452,6 +452,32 @@ class ReviewTest < ActiveSupport::TestCase
     assert_includes Review.outward, reviews(:task_only)
   end
 
+  test "should treat a review flagged as self as a self review even with a PR and a task" do
+    review = reviews(:pr_review)
+    review.update!(task_url: "https://tasks.example.com/9", scope: { "self" => true })
+
+    assert review.self_review?
+    assert_not review.github_actions_available?
+    assert_includes Review.self_reviews, review
+    assert_not_includes Review.outward, review
+  end
+
+  test "should keep the self flag when the review is started" do
+    review = Review.create!(project: projects(:webapp), branch: "sw-fix", task_url: "https://tasks.example.com/9",
+                            scope: { "self" => true })
+
+    review.start!(areas: %w[functionality], notes: "", inline_comments: false)
+
+    assert review.reload.self_review?
+    assert_equal %w[functionality], review.selected_areas
+  end
+
+  test "should know where the task description comes from" do
+    assert reviews(:pr_review).task_source?
+    assert reviews(:task_only).task_source?
+    assert_not Review.new(project: projects(:webapp), branch: "sw-fix").task_source?
+  end
+
   test "should allow verifying the findings only with a branch, findings and a settled review" do
     review = reviews(:pr_review)
     review.update!(status: "reviewed", branch: "sl-fix-vat")

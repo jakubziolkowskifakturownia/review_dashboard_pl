@@ -1,0 +1,41 @@
+<%# Zakładka „Self review” lewej kolumny — te same kafle i sekcje co kolejki „Do review”,
+    żeby przełączenie zakładki zmieniało treść, a nie sposób czytania listy. Linki celują
+    w prawą ramkę (detail_frame): formularz i review otwierają się obok listy. %>
+<div class="pagehead">
+  <h1>Self review</h1>
+  <p class="summary">
+    <span class="pill"><b><%= board.recent_reviews.size %></b> self review</span>
+    <span class="pill"><b><%= board.pr_rows.size %></b> moich PR-ów</span>
+    <span class="pill"><b><%= board.branch_rows.size %></b> branchy bez PR-a</span>
+  </p>
+</div>
+
+<div id="self_queues" data-controller="queue-animation">
+  <%= render "self_reviews/recent", reviews: board.recent_reviews, dashboard: current_dashboard %>
+
+  <section id="self_prs" class="queue">
+    <h2>Moje otwarte PR-y</h2>
+    <% board.pr_errors.each do |project, error| %>
+      <p class="empty"><%= project.name %>: nie udało się pobrać PR-ów — <%= error %></p>
+    <% end %>
+    <% if board.pr_rows.any? %>
+      <% board.pr_rows.each do |project, pr| %>
+        <%= render "self_reviews/pr_item", project: project, pr: pr, review: board.review_for_pr(pr["url"]) %>
+      <% end %>
+    <% elsif board.pr_errors.empty? %>
+      <p class="empty">Nie masz otwartych PR-ów.</p>
+    <% end %>
+  </section>
+
+  <section id="self_branches" class="queue queue-quiet">
+    <h2>Lokalne branche bez PR-a</h2>
+    <% if board.branch_rows.any? %>
+      <% board.branch_rows.each do |project, branch| %>
+        <%= render "self_reviews/branch_item", project: project, branch: branch,
+                   review: board.review_for_branch(project, branch.name) %>
+      <% end %>
+    <% else %>
+      <p class="empty">Brak branchy z commitami ponad gałąź główną (stan z ostatniego fetcha w repo).</p>
+    <% end %>
+  </section>
+</div>

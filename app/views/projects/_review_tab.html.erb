@@ -1,0 +1,27 @@
+<%# Zakładka „Do review” lewej kolumny: cudzy kod, czyli kolejki i projekty. %>
+<div class="pagehead">
+  <h1>Review dashboard</h1>
+  <%= render "projects/summary", dashboard: current_dashboard %>
+</div>
+
+<%# Kolejki pokazują wyłącznie projekt główny — przełącza go switcher u góry albo
+    radio na karcie projektu; odpowiedź turbo_stream podmienia #summary, #queues
+    i #projects. %>
+<%= render "projects/queues", dashboard: current_dashboard %>
+
+<%= render "projects/grid" %>
+
+<% if archived_projects.any? %>
+  <%# Zwinięte: archiwum jest potrzebne raz na kwartał i nie może wyglądać jak druga,
+      równorzędna lista projektów. %>
+  <details id="archived_projects">
+    <summary>Zarchiwizowane (<%= archived_projects.size %>)</summary>
+    <% archived_projects.each do |project| %>
+      <div class="archrow" id="project_row_<%= project.id %>">
+        <%= link_to project.name, project_reviews_path(project), data: { turbo_frame: detail_frame } %>
+        <span class="muted"><%= review_counts[project.id][:total] %> review</span>
+        <%= button_to "Przywróć", unarchive_project_path(project), class: "btn" %>
+      </div>
+    <% end %>
+  </details>
+<% end %>

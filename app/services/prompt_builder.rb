@@ -46,6 +46,12 @@ class PromptBuilder
     render("task_fit", review, force_context: true, discussion: discussion)
   end
 
+  # Nie dla sesji dashboardu: tekst do skopiowania z panelu selfreview i wklejenia
+  # agentowi, który poprawia kod. Szablon nie wstawia switched_context, bo agent to inna sesja.
+  def self.self_fix(review)
+    render("self_fix", review)
+  end
+
   # `resumed` przychodzi z joba, bo tylko on wie, czy sesja faktycznie dostała
   # `--resume`. Świeża sesja nie zna poprzedniego przebiegu, więc kontekst musi
   # przyjechać w prompcie także wtedy, gdy konto się nie zmieniło, a plik sesji

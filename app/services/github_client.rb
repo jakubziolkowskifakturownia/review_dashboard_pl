@@ -49,6 +49,18 @@ class GithubClient
     JSON.parse(result.stdout)
   end
 
+  # Moje otwarte PR-y do zakładki self review. `gh pr list`, a nie `gh search prs`,
+  # bo tylko on oddaje headRefName — po nim zakładka chowa lokalne branche, które
+  # mają już PR. Krótki timeout, bo zakładka czeka na to w requeście, a nie w tle.
+  MY_OPEN_PRS_TIMEOUT = 20
+
+  def my_open_prs(repo:, repo_dir:, limit: 50)
+    result = run!([ "gh", "pr", "list", "--repo", repo, "--author", "@me", "--state", "open",
+                    "--limit", limit.to_s, "--json", "number,title,url,headRefName,updatedAt,isDraft" ],
+                  label: "gh pr list --author", chdir: repo_dir, timeout: MY_OPEN_PRS_TIMEOUT)
+    JSON.parse(result.stdout)
+  end
+
   # Cała aktywność ludzi na PR-ze: po niej liczymy, czy ktoś odezwał się PO moim
   # ostatnim review. Samo `updatedAt` nie wystarcza — podnosi je też mój własny
   # komentarz i każdy push autora.

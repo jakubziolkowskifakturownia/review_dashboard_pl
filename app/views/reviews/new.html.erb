@@ -36,6 +36,14 @@
       <span class="hint">Sam branch = selfreview własnych zmian przed wystawieniem PR-a
         (diff do gałęzi głównej; nie wchodzi do kolejek na stronie wejściowej).</span>
     </div>
+    <div class="field">
+      <%# Tag ręcznie, nie f.check_box: odczyt self_review? jest prawdziwy dla pustego
+          formularza (brak linków), a checkbox ma być zaznaczony tylko na wyraźne życzenie. %>
+      <label class="checkbox-label"><%= hidden_field_tag "review[self_review]", "0", id: nil %><%= check_box_tag "review[self_review]", "1", @self_review_checked %>
+        🪞 Self review własnego kodu</label>
+      <span class="hint">Nic nie idzie na GitHuba — wynikiem jest prompt dla agenta, który poprawi kod.
+        Link do zadania zostaje kryterium oceny, a review — poza kolejkami strony wejściowej.</span>
+    </div>
 
     <%# Sesja to sprawy drugorzędne — defaulty przychodzą z ustawień projektu,
         więc trzy selecty stoją w jednym rzędzie zamiast puchnąć w pionie. %>

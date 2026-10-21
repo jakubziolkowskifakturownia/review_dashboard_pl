@@ -1,0 +1,58 @@
+<%# Prompt do wklejenia agentowi, który poprawia kod po selfreview. Składany z wyniku
+    w bazie, bez sesji Claude: znaleziska i zgodność z zadaniem są już ustrukturyzowane.
+    Obalone uwagi (verify_findings) wypadają — agent nie ma poprawiać czegoś, czego
+    świeża sesja nie potwierdziła. -%>
+<% findings = review.findings.from_review.order(:priority, :id).reject(&:refuted?) -%>
+<% unmet = review.task_fit_items.select { |item| Review.task_fit_status_blocking?(item["status"]) } -%>
+<% unverifiable = review.task_fit_items.select { |item| Review.task_fit_status_unverifiable?(item["status"]) } -%>
+Popraw kod na branchu `<%= review.branch %>` po review.
+<% if review.worktree_path.present? -%>
+Kod leży w worktree: <%= review.worktree_path %>
+<% end -%>
+<% if review.pr_url.present? -%>
+PR: <%= review.pr_url %>
+<% end -%>
+<% if review.task_url.present? -%>
+Zadanie: <%= review.task_url %> — przeczytaj je, zanim zaczniesz; zmiana ma je rozwiązywać.
+<% unless review.task_fit_verdict -%>
+Zgodności z zadaniem nie sprawdzono — brak listy niespełnionych punktów nie znaczy, że są spełnione. Rozlicz AC z zadania sam.
+<% end -%>
+<% end -%>
+<% if unmet.any? -%>
+
+## Niespełnione punkty zadania
+
+<% unmet.each do |item| -%>
+- <%= item["text"] %><%= " — #{item["note"]}" if item["note"].present? %>
+<% end -%>
+<% end -%>
+<% if unverifiable.any? -%>
+
+## Do sprawdzenia poza kodem
+
+Kod tego nie rozstrzyga. Zbierz dowód albo zapytaj mnie, zanim uznasz punkt za zrobiony.
+
+<% unverifiable.each do |item| -%>
+- <%= item["text"] %><%= " — potrzebne: #{item["needed_evidence"]}" if item["needed_evidence"].present? %>
+<% end -%>
+<% end -%>
+<% if findings.any? -%>
+
+## Uwagi z review
+
+<% findings.each do |finding| -%>
+### [<%= finding.priority %>] <%= finding.title %><%= " (#{finding.file_location})" if finding.file_location.present? %>
+
+<%= finding.body.to_s.strip %>
+
+<% end -%>
+<% end -%>
+## Jak pracować
+
+1. Najpierw zweryfikuj każdą uwagę w kodzie. Jeśli uwaga jest błędna, nie poprawiaj — napisz dlaczego.
+2. Do każdej poprawki dopisz albo popraw test, który bez niej nie przechodzi.
+3. Uruchom testy powiązane ze zmienionymi plikami; wszystkie mają przejść.
+4. Nie commituj ani nie pushuj bez mojej zgody.
+5. Na koniec wypisz uwagi z wynikiem: poprawiona / odrzucona z powodem / do decyzji.
+
+<%= style %>

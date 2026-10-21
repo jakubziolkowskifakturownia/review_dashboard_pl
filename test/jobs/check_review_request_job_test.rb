@@ -71,6 +71,13 @@ class CheckReviewRequestJobTest < ActiveSupport::TestCase
     assert_equal "merged", @review.reload.status
   end
 
+  test "should finish a self review of an own PR once the PR is merged" do
+    @review.update!(status: "reviewed", scope: { "self" => true })
+    github = FakeGithub.new({ "reviewRequests" => [], "state" => "MERGED" })
+    CheckReviewRequestJob.perform_now(@review, github: github)
+    assert_equal "merged", @review.reload.status
+  end
+
   test "PR zamknięty bez merge'a kończy review na stałe" do
     github = FakeGithub.new({ "reviewRequests" => [], "state" => "CLOSED" })
     CheckReviewRequestJob.perform_now(@review, github: github)

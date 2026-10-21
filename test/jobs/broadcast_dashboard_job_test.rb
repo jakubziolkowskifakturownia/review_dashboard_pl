@@ -35,6 +35,16 @@ class BroadcastDashboardJobTest < ActiveSupport::TestCase
     assert_match %r{id="review_queue_#{review.id}"}, stream.join
   end
 
+  test "should broadcast my self reviews section with their tiles" do
+    review = @project.reviews.create!(branch: "jz_local", scope: { "self" => true }, status: "reviewed")
+
+    BroadcastDashboardJob.perform_now
+
+    assert_match %r{target="self_recent"}, stream.join
+    assert_match %r{id="review_queue_#{review.id}"}, stream.join
+    assert_match "Skopiuj prompt poprawek dla agenta", stream.join
+  end
+
   # Broadcast to kosmetyka — jego błąd nie może wywracać kolejki jobów, bo przechodzi
   # przez nią każdy zapis review i każdy run.
   test "błąd renderu nie wywraca joba" do

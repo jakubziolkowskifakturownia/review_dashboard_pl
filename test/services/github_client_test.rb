@@ -113,6 +113,17 @@ class GithubClientTest < ActiveSupport::TestCase
                    "--json", "number,title,url,author,updatedAt" ], fake.calls.sole[:cmd]
   end
 
+  test "should list my own open PRs with their head branch" do
+    payload = [ { "number" => 7, "title" => "Fix", "url" => "u", "headRefName" => "jz_fix", "updatedAt" => "t", "isDraft" => false } ]
+    fake = FakeRunner.new([ CommandRunner::Result.new(exit_code: 0, stdout: payload.to_json, stderr: "", timed_out: false) ])
+
+    result = GithubClient.new(runner: fake).my_open_prs(repo: "acme/webapp", repo_dir: "/repo")
+
+    assert_equal payload, result
+    assert_equal [ "gh", "pr", "list", "--repo", "acme/webapp", "--author", "@me", "--state", "open",
+                   "--limit", "50", "--json", "number,title,url,headRefName,updatedAt,isDraft" ], fake.calls.sole[:cmd]
+  end
+
   test "should ask for the whole human activity on a PR" do
     fake = FakeRunner.new([ CommandRunner::Result.new(exit_code: 0, stdout: "{}", stderr: "", timed_out: false) ])
     GithubClient.new(runner: fake).pr_activity(PR_URL, repo_dir: "/repo")
