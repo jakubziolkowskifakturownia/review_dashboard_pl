@@ -1,4 +1,6 @@
 class ClaudeRun < ApplicationRecord
+  include SafeBroadcasting
+
   KINDS = %w[describe describe_task review followup compact comment_task verify_fixes verify_findings task_fit].freeze
   # Kroki cyklu review (describe → review → followup) — w odróżnieniu od runów
   # pobocznych (compact, describe_task), które mają własne przyciski ponowienia
@@ -44,16 +46,20 @@ class ClaudeRun < ApplicationRecord
   # równolegle z review, więc wspólny target znaczyłby, że obie sesje nadpisują sobie
   # treść w losowej kolejności — i „Pobieram opis zadania" znikało pod logiem review.
   after_update_commit -> {
-    broadcast_replace_to review, target: "review_#{review_id}_#{progress_scope}_progress",
-                         partial: "reviews/#{progress_scope == "side" ? "task_progress" : "progress"}",
-                         locals: { review: review.reload }
+    broadcast_safely("broadcast_progress") do
+      broadcast_replace_to review, target: "review_#{review_id}_#{progress_scope}_progress",
+                           partial: "reviews/#{progress_scope == "side" ? "task_progress" : "progress"}",
+                           locals: { review: review.reload }
+    end
   }, if: -> { saved_change_to_last_message? || saved_change_to_status? || saved_change_to_started_at? }
 
   # Licznik kontekstu ma rosnąć w trakcie sesji, a nie dopiero po odświeżeniu —
   # to jedyna liczba w panelu, która mówi, czy następny followup się jeszcze zmieści.
   after_update_commit -> {
-    broadcast_replace_to review, target: "review_#{review_id}_context",
-                         partial: "reviews/context", locals: { review: review.reload }
+    broadcast_safely("broadcast_context") do
+      broadcast_replace_to review, target: "review_#{review_id}_context",
+                           partial: "reviews/context", locals: { review: review.reload }
+    end
   }, if: -> { saved_change_to_context_tokens? || saved_change_to_context_window? || saved_change_to_status? }
 
   # Kafel kolejki czyta stan runów, a nie tylko review: „⏳ czeka w kolejce workera"
