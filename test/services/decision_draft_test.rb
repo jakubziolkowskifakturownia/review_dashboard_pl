@@ -54,6 +54,21 @@ class DecisionDraftTest < ActiveSupport::TestCase
     MD
   end
 
+  # Werdykt audytu to najważniejsza informacja przy PR-ach security — nie może
+  # leżeć tylko w zwiniętym podsumowaniu.
+  test "blok audytu security idzie pod „Krótko”, poza zwiniętym podsumowaniem" do
+    @review.update!(summary: "**Krótko:** Można approve.\n\n**Co sprawdziłem**\n- testy\n\n" \
+                             "**Audyt security** — werdykt: bez obejść\n- **mutacje** — 13 z 16 zabitych")
+    approve = DecisionDraft.new(@review).for("approve")
+    head, details = approve.split("<details>", 2)
+    assert_includes head, "**Krótko:** Można approve.\n\n**Audyt security** — werdykt: bez obejść\n- **mutacje** — 13 z 16 zabitych\n\n**Zatwierdzam"
+    assert_includes details, "**Audyt security**", "pełne podsumowanie zostaje pełne"
+  end
+
+  test "bez bloku audytu w podsumowaniu nie ma nagłówka audytu" do
+    assert_nil DecisionDraft.new(@review).placeholders[:security_audit]
+  end
+
   test "misses: reject wylicza niespełnione punkty, approve bierze je na siebie, comment pyta o zakres" do
     gate!("misses", criteria_status: "unmet", trap_status: "open")
     drafts = DecisionDraft.new(@review).all

@@ -163,6 +163,28 @@ class PromptBuilderTest < ActiveSupport::TestCase
     assert_includes prompt, '"playwright": null'
   end
 
+  # Skill pisany pod pracę z człowiekiem: bez tej sekcji sesja w tle założyłaby drugi
+  # worktree, zacommitowała testy, dała approve i napisała w trackerze.
+  test "review z obszarami security każe wywołać skille i zakazuje kroków po zgodzie usera" do
+    review = reviews(:pr_review)
+    review.update!(scope: { "areas" => %w[functionality sec_pr_audit security_review] })
+    prompt = PromptBuilder.review(review)
+    assert_includes prompt, "## Audyt security (obowiązkowe)"
+    assert_includes prompt, "`sec-pr-audit` z argumentem `#{review.pr_url}`"
+    assert_includes prompt, "`security-review`"
+    assert_includes prompt, "Nie zakładaj\n  drugiego"
+    assert_includes prompt, "Po zgodzie usera"
+    assert_includes prompt, "**Audyt security** — werdykt:", "wynik audytu ma własny blok w summary"
+  end
+
+  test "review bez obszarów security nie wspomina o skillach" do
+    review = reviews(:pr_review)
+    review.update!(scope: { "areas" => %w[functionality] })
+    prompt = PromptBuilder.review(review)
+    assert_not_includes prompt, "## Audyt security"
+    assert_not_includes prompt, "**Audyt security**"
+  end
+
   test "review dokleja stałe zasady projektu gdy są" do
     review = reviews(:pr_review)
     review.project.update!(review_prompt_extra: "Zawsze sprawdzaj warianty tailwind widoków.")

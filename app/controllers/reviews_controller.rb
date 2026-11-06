@@ -161,9 +161,15 @@ class ReviewsController < ApplicationController
     # result.json i findings pierwszego przebiegu.
     return redirect_to(@review, alert: "Review nie jest gotowy do startu (status: #{@review.status})") unless @review.status == "ready"
 
+    areas = Array(params[:areas])
+    if (missing = @review.missing_area_skills(areas)).any?
+      config = Review.claude_config_label(@review.effective_claude_config)
+      return redirect_to(@review, alert: "Skilla #{missing.join(", ")} nie ma na koncie #{config} — przełącz konto albo odznacz ten obszar")
+    end
+
     # Status przestawiamy tu, nie w jobie: między kolejkowaniem a startem workera
     # potrafi minąć kilkanaście minut i panel nie może wtedy wyglądać jak przed kliknięciem.
-    @review.start!(areas: params[:areas], notes: params[:notes], inline_comments: params[:inline_comments] == "1")
+    @review.start!(areas: areas, notes: params[:notes], inline_comments: params[:inline_comments] == "1")
     RunReviewJob.perform_later(@review)
     redirect_to @review
   end

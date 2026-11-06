@@ -130,6 +130,7 @@ claude -p --verbose --output-format stream-json --dangerously-skip-permissions
 | `gh` w PATH | **wymagane** | opis PR-a (`gh pr view/diff`) robi sesja Claude, nie dashboard |
 | dostęp do trackera zadań (skill / MCP) | opcjonalne | „Opis zadania" i „Komentarz do zadania" każą sesji **otworzyć `task_url`** — bez skilla do Twojego trackera te kroki skończą się błędem (review działa dalej). Wyjątek: projekt z tokenem integracji (Intum) — wtedy komentarz **wysyła aplikacja przez API**, a sesja tylko pisze jego treść |
 | Playwright w repo projektu | opcjonalne | obszar „QA + Playwright" pisze i odpala test klikający feature |
+| skill `sec-pr-audit` w `<config>/skills/` | opcjonalne | obszar „Audyt security" — bez skilla na wybranym koncie start review z tym obszarem odmawia. Obszar „Security review" używa wbudowanego `/security-review`, więc działa na każdym koncie |
 
 Żadnych innych skilli dashboard nie wymaga — prompty (w `app/prompts/`) są
 samowystarczalne. Wspólny styl odpowiedzi (`_style.md`) jest wstrzykiwany do

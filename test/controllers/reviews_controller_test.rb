@@ -417,6 +417,29 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
     assert_select ".md code", text: "kod"
   end
 
+  # Audyt security to kilkadziesiąt minut sesji — ma być świadomym wyborem, nie
+  # skutkiem kliknięcia „Start review" z domyślnymi checkboxami.
+  test "przy pierwszym podejściu obszary security są odznaczone, reszta zaznaczona" do
+    review = reviews(:pr_review)
+    review.update!(status: "ready", description: "OPIS")
+    get review_path(review)
+    assert_select "input[type=checkbox][name='areas[]'][value=functionality][checked]"
+    Review::SKILL_AREAS.each_key do |key|
+      assert_select "input[type=checkbox][name='areas[]'][value=#{key}]:not([checked])"
+    end
+  end
+
+  test "start odmawia, gdy skilla z zaznaczonego obszaru nie ma w configu review" do
+    review = reviews(:pr_review)
+    review.update!(status: "ready", worktree_path: Dir.tmpdir)
+    assert_no_enqueued_jobs(only: RunReviewJob) do
+      post start_review_path(review), params: { areas: %w[functionality sec_pr_audit] }
+    end
+    assert_redirected_to review_path(review)
+    assert_match(/sec-pr-audit/, flash[:alert])
+    assert_equal "ready", review.reload.status
+  end
+
   test "ekran ready odtwarza poprzedni wybór checkboxów i notatki" do
     review = reviews(:pr_review)
     review.update!(status: "ready", description: "OPIS",

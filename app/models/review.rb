@@ -71,7 +71,17 @@ class Review < ApplicationRecord
     "readability" => "Czytelność",
     "api" => "API",
     "project_rules" => "Zasady projektu",
-    "qa_playwright" => "QA + Playwright"
+    "qa_playwright" => "QA + Playwright",
+    "sec_pr_audit" => "Audyt security (/sec-pr-audit)",
+    "security_review" => "Security review (/security-review)"
+  }.freeze
+  # Obszary, które sesja robi skillem, a nie samym promptem. Wbudowany skill ma
+  # każda instalacja claude CLI; własny leży w <config>/skills/ i bywa tylko na
+  # jednym koncie. Przy pierwszym podejściu odznaczone: audyt trwa długo i nie
+  # dotyczy każdego PR-a.
+  SKILL_AREAS = {
+    "sec_pr_audit" => { skill: "sec-pr-audit", builtin: false },
+    "security_review" => { skill: "security-review", builtin: true }
   }.freeze
   # Dostępne configi Claude CLI na tej maszynie — wybierane per-review, nie per-projekt.
   # Lista jest per-maszyna, więc żyje w gitignorowanym config/claude_configs.yml
@@ -364,6 +374,13 @@ class Review < ApplicationRecord
 
   def selected_areas
     Array(scope&.dig("areas"))
+  end
+
+  # Skille z zaznaczonych obszarów, których nie ma w configu tego review. Z dysku,
+  # nie z listy: skill dochodzi i znika poza dashboardem.
+  def missing_area_skills(areas)
+    SKILL_AREAS.values_at(*areas).compact.reject { |area| area[:builtin] }.map { |area| area[:skill] }
+               .reject { |skill| File.exist?(File.join(effective_claude_config, "skills", skill, "SKILL.md")) }
   end
 
   # Domyślnie włączone: review sprzed tej zmiany nie ma klucza w scope, a checkbox

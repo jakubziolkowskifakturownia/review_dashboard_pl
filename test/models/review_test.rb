@@ -228,6 +228,29 @@ class ReviewTest < ActiveSupport::TestCase
     assert_nil review.available_docs_path
   end
 
+  # Sesja na koncie bez skilla nie padnie, tylko zrobi zwykłe review — a panel
+  # pokaże wynik tak, jakby audyt security się odbył.
+  test "missing_area_skills: skill spoza wybranego configu jest brakujący" do
+    config = Dir.mktmpdir
+    review = reviews(:pr_review)
+    review.stub(:effective_claude_config, config) do
+      assert_equal %w[sec-pr-audit], review.missing_area_skills(%w[functionality sec_pr_audit])
+
+      FileUtils.mkdir_p(File.join(config, "skills", "sec-pr-audit"))
+      File.write(File.join(config, "skills", "sec-pr-audit", "SKILL.md"), "---")
+      assert_empty review.missing_area_skills(%w[functionality sec_pr_audit])
+    end
+  ensure
+    FileUtils.remove_entry(config)
+  end
+
+  test "missing_area_skills: wbudowany /security-review jest w każdym configu" do
+    review = reviews(:pr_review)
+    review.stub(:effective_claude_config, "/nie/ma/takiego/configu") do
+      assert_empty review.missing_area_skills(%w[security_review])
+    end
+  end
+
   test "scope przechowuje obszary i notatki" do
     review = reviews(:pr_review)
     review.update!(scope: { "areas" => %w[functionality qa_playwright], "notes" => "sprawdź VAT" })

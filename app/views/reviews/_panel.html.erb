@@ -48,8 +48,9 @@
     <%= form_with url: start_review_path(review), method: :post do %>
       <div class="areas">
         <% Review::AREAS.each do |key, label| %>
-          <%# Po „Ponów" odtwarzamy poprzedni wybór; przy pierwszym podejściu wszystko zaznaczone. %>
-          <label><input type="checkbox" name="areas[]" value="<%= key %>" <%= "checked" if review.selected_areas.blank? || review.selected_areas.include?(key) %>> <%= label %></label>
+          <%# Po „Ponów" odtwarzamy poprzedni wybór; przy pierwszym podejściu wszystko poza obszarami security. %>
+          <% checked = review.selected_areas.blank? ? !Review::SKILL_AREAS.key?(key) : review.selected_areas.include?(key) %>
+          <label><input type="checkbox" name="areas[]" value="<%= key %>" <%= "checked" if checked %>> <%= label %></label>
         <% end %>
       </div>
       <div class="field">
