@@ -284,7 +284,7 @@ class CheckReviewRequestJobTest < ActiveSupport::TestCase
 
 
   # Liczy się OSTATNI stan danej osoby: „zażądał zmian, potem zaakceptował” to nie
-  # podważenie, tylko zamknięta dyskusja (review 9: tbogus).
+  # podważenie, tylko zamknięta dyskusja.
   test "cudzy CHANGES_REQUESTED zastąpiony późniejszym APPROVED nie podważa" do
     approved!
     github = FakeGithub.new({ "reviewRequests" => [], "state" => "OPEN" },
@@ -292,5 +292,26 @@ class CheckReviewRequestJobTest < ActiveSupport::TestCase
                                        other_review("tomek", "APPROVED", 1.hour.ago) ])
     assert_no_enqueued_jobs(only: FollowupReviewJob) { CheckReviewRequestJob.perform_now(@review, github: github) }
     assert_equal "decided", @review.reload.status
+  end
+
+  # Worktree skasowany poza dashboardem (`bin/worktree-docker -d`) zostawia w bazie
+  # ścieżkę donikąd — `gh` odpalony w takim katalogu padał ENOENT przy każdym sprawdzeniu.
+  test "usunięty worktree: gh pyta z repo projektu i zapisuje sprawdzenie" do
+    @review.update!(worktree_path: "/nie/ma/takiego/worktree")
+    github = FakeGithub.new({ "reviewRequests" => [], "state" => "OPEN" })
+    CheckReviewRequestJob.perform_now(@review, github: github)
+    assert_equal(
+      { calls: [ { pr_url: @review.pr_url, repo_dir: @review.project.repo_path } ], checked: true },
+      { calls: github.calls, checked: @review.reload.github_checked_at.present? }
+    )
+  end
+
+  test "istniejący worktree: gh pyta z worktree" do
+    Dir.mktmpdir do |worktree|
+      @review.update!(worktree_path: worktree)
+      github = FakeGithub.new({ "reviewRequests" => [], "state" => "OPEN" })
+      CheckReviewRequestJob.perform_now(@review, github: github)
+      assert_equal [ { pr_url: @review.pr_url, repo_dir: worktree } ], github.calls
+    end
   end
 end

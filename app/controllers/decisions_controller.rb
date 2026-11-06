@@ -76,7 +76,7 @@ class DecisionsController < ApplicationController
   # uwagi wdrożone" nie ma od czego liczyć diffu. Padnięty gh nie może wywalić wysyłki
   # decyzji, która już wyszła na GitHuba, więc błąd kończy się brakiem SHA.
   def head_sha_at_decision
-    GithubClient.new.pr_head_sha(@review.pr_url, repo_dir: @review.workdir)
+    GithubClient.new.pr_head_sha(@review.pr_url, repo_dir: @review.github_repo_dir)
   rescue GithubClient::Error => e
     Rails.logger.warn("DecisionsController review #{@review.id}: #{e.message}")
     nil

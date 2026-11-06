@@ -710,6 +710,12 @@ class Review < ApplicationRecord
     own_worktree_path.present? && Dir.exist?(own_worktree_path)
   end
 
+  # Katalog dla `gh`: wystarczy mu dowolny checkout repo, więc skasowany worktree
+  # spada na repo projektu zamiast wywracać zapytanie ENOENT-em z chdir.
+  def github_repo_dir
+    worktree_exists? ? own_worktree_path : project.repo_path
+  end
+
   # Adres środowiska dev postawionego przez skrypt worktree (wzorzec z projektu,
   # host z nazwy brancha) — po to, żeby z review dało się wejść w działającą apkę
   # i sprawdzić coś samemu. Warunek na istnienie katalogu jest celowy: skasowany
