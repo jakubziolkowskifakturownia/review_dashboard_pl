@@ -42,7 +42,7 @@ class OrphanedRunsCleanupTest < ActiveSupport::TestCase
     queued = reviews(:task_only)
     queued.update!(task_description_status: "queued")
 
-    CommandRunner.stub :kill_group, ->(*_args, **) {} do
+    CommandRunner.stub :kill_group, ->(*_args, **) { } do
       OrphanedRunsCleanup.call
     end
     assert_equal "failed", running.reload.task_description_status
