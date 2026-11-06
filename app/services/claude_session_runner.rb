@@ -7,6 +7,10 @@ class ClaudeSessionRunner
   Stalled = Class.new(Failed)
 
   COMMAND = %w[claude -p --verbose --output-format stream-json --dangerously-skip-permissions].freeze
+  # Po evencie `result` sesja potrafi nie wyjść, czekając na procesy odpalone w tle
+  # (serwer testowy, LSP, wiszący `rm -i`). Wynik jest już kompletny, więc po tym
+  # czasie runner kończy proces sam, zamiast czekać na watchdog ciszy i ponawiać review.
+  RESULT_EXIT_GRACE = 30
 
   def initialize(claude_run, runner: CommandRunner)
     @run = claude_run
@@ -28,7 +32,9 @@ class ClaudeSessionRunner
         timeout: @run.timeout_seconds,
         idle_timeout: @run.idle_timeout_seconds,
         stdin_data: prompt,
-        on_pid: ->(pid) { @run.update!(pid: pid) }
+        on_pid: ->(pid) { @run.update!(pid: pid) },
+        finished_when: ->(line) { StreamJsonParser.parse_line(line)&.type == :result },
+        exit_grace: RESULT_EXIT_GRACE
       ) do |line|
         log.write(line)
         final_text = handle_event(StreamJsonParser.parse_line(line)) || final_text

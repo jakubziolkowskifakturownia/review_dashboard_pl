@@ -8,9 +8,12 @@ class CommandRunner
   KILL_GRACE = 3 # sekundy między SIGTERM a SIGKILL przy timeoucie
   POLL_INTERVAL = 1 # jak często sprawdzamy oba limity, czekając na koniec strumienia
 
-  Result = Struct.new(:exit_code, :stdout, :stderr, :timed_out, :idle_timed_out, :signaled, keyword_init: true) do
+  # finished_early: proces dał sygnał końca (finished_when), ale nie wyszedł sam
+  # w exit_grace i został dobity — jego wynik jest już kompletny, więc to sukces.
+  Result = Struct.new(:exit_code, :stdout, :stderr, :timed_out, :idle_timed_out, :signaled, :finished_early,
+                      keyword_init: true) do
     def success?
-      exit_code == 0 && !timed_out && !idle_timed_out
+      finished_early || (exit_code == 0 && !timed_out && !idle_timed_out)
     end
   end
 
@@ -22,7 +25,8 @@ class CommandRunner
     [ "/bin/zsh", "-c", script ]
   end
 
-  def self.stream(cmd, env: {}, chdir:, timeout:, idle_timeout: nil, stdin_data: nil, on_pid: nil, kill_grace: KILL_GRACE, &on_line)
+  def self.stream(cmd, env: {}, chdir:, timeout:, idle_timeout: nil, stdin_data: nil, on_pid: nil, kill_grace: KILL_GRACE,
+                  finished_when: nil, exit_grace: nil, &on_line)
     stdout_buf = +""
     stderr_buf = +""
     outcome = :done
@@ -47,15 +51,18 @@ class CommandRunner
       # Zapis skalara pod GVL jest atomowy — czytelnik tej zmiennej (pętla niżej)
       # potrzebuje tylko ostatniej wartości, więc mutex byłby tu zbędnym kosztem.
       last_line_at = monotonic
+      finished_at = nil
       stdout_reader = Thread.new do
         stdout.each_line do |line|
           last_line_at = monotonic
           stdout_buf << line
           on_line&.call(line)
+          finished_at ||= monotonic if finished_when&.call(line)
         end
       end
 
-      outcome = watch(stdout_reader, timeout: timeout, idle_timeout: idle_timeout) { last_line_at }
+      outcome = watch(stdout_reader, timeout: timeout, idle_timeout: idle_timeout, exit_grace: exit_grace,
+                      finished_at: -> { finished_at }) { last_line_at }
       unless outcome == :done
         kill_group(wait_thr.pid)
         # Grace na TERM; proces ignorujący sygnał dobijamy KILL-em, żeby nie
@@ -74,17 +81,18 @@ class CommandRunner
       exit_code: status&.exitstatus || -1,
       stdout: stdout_buf, stderr: stderr_buf,
       timed_out: outcome == :timeout, idle_timed_out: outcome == :idle,
-      signaled: !!status&.signaled?
+      signaled: !!status&.signaled?, finished_early: outcome == :finished
     )
   end
 
   # Czeka na koniec strumienia, pilnując dwóch limitów naraz: całkowitego czasu
   # i ciszy. Zwisająca sesja przestaje emitować linie, choć proces żyje — czekanie
   # na limit całkowity byłoby wtedy tylko marnowaniem czasu.
-  def self.watch(reader, timeout:, idle_timeout:, &last_line_at)
+  def self.watch(reader, timeout:, idle_timeout:, exit_grace: nil, finished_at: -> { }, &last_line_at)
     started = monotonic
     until reader.join(POLL_INTERVAL)
       now = monotonic
+      return :finished if exit_grace && (done = finished_at.call) && now - done >= exit_grace
       return :timeout if now - started >= timeout
       return :idle if idle_timeout && now - last_line_at.call >= idle_timeout
     end
