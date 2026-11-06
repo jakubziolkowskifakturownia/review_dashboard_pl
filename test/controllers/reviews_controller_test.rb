@@ -310,12 +310,20 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
     assert_select ".flash-error a[href=?]", review_path(existing)
   end
 
-  test "create z checkboxem kolejkuje opis zadania" do
-    assert_enqueued_with(job: DescribeTaskJob) do
+  # Z PR-em opis zadania czeka na DescribeReviewJob — dopiero on ustala, które to zadanie.
+  test "create z checkboxem i PR-em zostawia opis zadania w kolejce dla joba opisu PR-a" do
+    assert_no_enqueued_jobs(only: DescribeTaskJob) do
       post project_reviews_path(@project),
            params: { review: { pr_url: "https://github.com/acme/webapp/pull/77" }, fetch_task_description: "1" }
     end
     assert_equal "queued", Review.order(:id).last.task_description_status
+  end
+
+  test "create z checkboxem i samym zadaniem kolejkuje opis zadania od razu" do
+    assert_enqueued_with(job: DescribeTaskJob) do
+      post project_reviews_path(@project),
+           params: { review: { task_url: "https://tasks.example.com/778" }, fetch_task_description: "1" }
+    end
   end
 
   test "create bez checkboxa zostawia skipped i nie kolejkuje" do

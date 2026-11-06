@@ -23,6 +23,13 @@ class CommentTaskJobTest < ActiveSupport::TestCase
     assert_equal [ "comment_task" ], @review.claude_runs.map(&:kind)
   end
 
+  test "niepewny link do zadania: bez sesji i bez komentarza" do
+    @review.update!(task_link_status: "uncertain", task_comment_status: "queued")
+    run_with("nie powinno powstać")
+    assert_equal "skipped", @review.task_comment_status
+    assert_empty @review.claude_runs
+  end
+
   test "ERROR: status failed, powód czytelny z task_comment_error, treść nietknięta" do
     @review.update!(task_comment: "POPRZEDNI KOMENTARZ")
     run_with("ERROR: wygasła sesja trackera")

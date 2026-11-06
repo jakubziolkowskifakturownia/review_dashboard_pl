@@ -132,7 +132,8 @@ class ReviewsController < ApplicationController
     @review.task_description_status = "queued" if params[:fetch_task_description] == "1" && @review.task_source?
     if @review.save
       DescribeReviewJob.perform_later(@review)
-      DescribeTaskJob.perform_later(@review) if @review.task_description_status == "queued"
+      # Z PR-em opis zadania kolejkuje DescribeReviewJob, gdy już wie, które to zadanie.
+      DescribeTaskJob.perform_later(@review) if @review.task_description_status == "queued" && @review.pr_url.blank?
       redirect_to @review
     else
       flash.now[:error] = create_error_message

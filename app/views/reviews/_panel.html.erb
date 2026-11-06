@@ -8,6 +8,7 @@
     <span class="task-fit-sub"><%= challenge_description(review) %>. Nic nie ruszyło samo: <%= review.challenge&.dig("source") == "task" ? "najpierw dograj nowe komentarze (karta „Opis zadania”), potem" : "jeśli sprawa żyje," %> odpal sprawdzenie ponowne niżej.</span>
   </div>
 <% end %>
+<%= render "reviews/task_link", review: review if review.task_link_uncertain? %>
 <% unless review.finished? || review.status.in?(%w[created describing]) %>
   <%= render "reviews/task_fit", review: review %>
 <% end %>
@@ -176,7 +177,7 @@
         <%# Tylko przy znanym task_url — bez niego nie ma dokąd pisać, więc opcja
             w ogóle się nie pokazuje. Default odznaczony: komentarz w trackerze to
             wyjątek, nie reguła. Instrukcja rozwija się po zaznaczeniu (CSS :has). %>
-        <% if review.task_url.present? %>
+        <% if review.task_comment_possible? %>
           <div class="field task-comment-field">
             <label><input type="checkbox" name="task_comment" value="1" class="task-comment-toggle">
               📝 Dodaj komentarz do zadania w trackerze</label>

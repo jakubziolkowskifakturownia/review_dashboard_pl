@@ -160,6 +160,19 @@ class DecisionsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "skipped", @review.reload.task_comment_status
   end
 
+  test "niepewny link do zadania blokuje komentarz i chowa checkbox" do
+    @review.update!(task_url: "https://tasks.example.com/777", task_link_status: "uncertain", task_link_note: "dwa zadania")
+    get review_path(@review)
+    assert_select "input[name=task_comment]", false
+    assert_select ".task-link-banner", /dwa zadania/
+    GithubClient.stub :new, fake_client([]) do
+      assert_no_enqueued_jobs only: CommentTaskJob do
+        post review_decision_path(@review), params: { verdict: "approve", body: "LGTM", task_comment: "1" }
+      end
+    end
+    assert_equal "skipped", @review.reload.task_comment_status
+  end
+
   test "błąd gh nie kolejkuje komentarza do zadania" do
     @review.update!(task_url: "https://tasks.example.com/777")
     failing = Object.new.tap { |o| o.define_singleton_method(:submit_review) { |*_a, **_kw| raise GithubClient::Error, "boom" } }

@@ -107,4 +107,45 @@ class DescribeReviewJobTest < ActiveSupport::TestCase
 
     assert_equal "https://tracker.example.com/organize/tasks/1", review.reload.task_url
   end
+
+  def describe(review, body:, title: "Fix VAT")
+    github = FakeGithub.new(body: body)
+    github.define_singleton_method(:pr_info) { |_url, repo_dir:| { "number" => 1234, "title" => title, "headRefName" => "sl-fix-vat", "body" => body } }
+    DescribeReviewJob.perform_now(review, github: github, worktrees: FakeWorktrees.new,
+                                          session_factory: ->(_run) { FakeSession.new("OPIS") })
+    review.reload
+  end
+
+  test "pewny link: zapisuje status sprawdzenia i dopiero teraz kolejkuje opis zadania" do
+    projects(:webapp).update!(task_url_prefix: "https://tracker.example.com/organize/tasks/")
+    review = reviews(:pr_review)
+    review.update!(task_description_status: "queued")
+
+    assert_enqueued_with(job: DescribeTaskJob, args: [ review ]) do
+      describe(review, title: "Fix VAT (32586)", body: "Zadanie: https://tracker.example.com/organize/tasks/t/32586")
+    end
+    assert_equal [ "confirmed", "queued" ], [ review.task_link_status, review.task_description_status ]
+  end
+
+  test "niepewny link: opis zadania nie rusza, panel dostaje powód" do
+    projects(:webapp).update!(task_url_prefix: "https://tracker.example.com/organize/tasks/")
+    review = reviews(:pr_review)
+    review.update!(task_description_status: "queued")
+
+    assert_no_enqueued_jobs(only: DescribeTaskJob) do
+      describe(review, title: "Fix VAT (555)", body: "Zadanie: https://tracker.example.com/organize/tasks/444")
+    end
+    assert_equal [ "uncertain", "skipped" ], [ review.task_link_status, review.task_description_status ]
+    assert_match "#555", review.task_link_note
+    assert review.task_link_uncertain?
+  end
+
+  test "link z formularza nie jest podważany" do
+    projects(:webapp).update!(task_url_prefix: "https://tracker.example.com/organize/tasks/")
+    review = reviews(:pr_review)
+    review.update!(task_url: "https://tracker.example.com/organize/tasks/1")
+
+    describe(review, title: "Fix (2)", body: "https://tracker.example.com/organize/tasks/2")
+    assert_nil review.task_link_status
+  end
 end

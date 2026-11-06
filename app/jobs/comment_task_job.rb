@@ -6,6 +6,10 @@ class CommentTaskJob < ApplicationJob
   ERROR_LINE = /\AERROR:\s*(.+)/
 
   def perform(review, session_factory: default_session_factory, intum: nil)
+    # Ostatnia linia obrony: kontrolery tego nie kolejkują, ale komentarz w złym
+    # zadaniu trackera jest gorszy niż żaden.
+    return review.update!(task_comment_status: "skipped") if review.task_link_uncertain?
+
     # "running", nie od razu wynik — po restarcie OrphanedRunsCleanup odróżnia
     # "czeka w kolejce" od "pracowało i przepadło".
     review.update!(task_comment_status: "running")

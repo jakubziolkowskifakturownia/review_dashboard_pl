@@ -70,6 +70,16 @@ class IntumClientTest < ActiveSupport::TestCase
     assert_equal 9876, task["id"]
   end
 
+  test "subtasks pyta po PK rodzica i odrzuca zadania spoza niego" do
+    fake = FakeTransport.new
+    fake.queue(:get, "/organize/tasks.json", code: 200, body: [
+      { id: 2, scoped_id: 102, task_id: 1 }, { id: 3, scoped_id: 103, task_id: nil }
+    ])
+
+    assert_equal [ 102 ], client(fake).subtasks(1).map { |task| task["scoped_id"] }
+    assert_equal({ task_id: 1, api_token: "tajny" }, fake.calls.sole.params)
+  end
+
   test "post_comment wysyła formularz z markup github_markdown i opcjonalnym responsible" do
     fake = FakeTransport.new
     fake.queue(:post, "/organize/comments.json", code: 201, body: { id: 1 })

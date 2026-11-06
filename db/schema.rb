@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_21_073748) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_06_090448) do
   create_table "claude_runs", force: :cascade do |t|
     t.integer "cache_creation_tokens"
     t.integer "cache_read_tokens"
@@ -175,6 +175,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_21_073748) do
     t.json "task_fit"
     t.datetime "task_fit_checked_at"
     t.string "task_fit_status", default: "skipped", null: false
+    t.text "task_link_note"
+    t.string "task_link_status"
     t.string "task_title"
     t.string "task_url"
     t.datetime "updated_at", null: false

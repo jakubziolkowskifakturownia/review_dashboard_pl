@@ -38,6 +38,14 @@ class IntumClient
     parse(@transport.get("/organize/tasks/#{scoped_id}.json", { api_token: @token }))
   end
 
+  # Podzadania zadania o danym PK (pole `task_id` podzadania to PK rodzica). Filtr
+  # powtarzamy u siebie: gdyby tracker kiedyś zignorował parametr, oddałby pierwszą
+  # stronę wszystkich zadań i każde zadanie wyglądałoby na zbiorcze.
+  def subtasks(task_pk)
+    parse(@transport.get("/organize/tasks.json", { task_id: task_pk, api_token: @token }))
+      .select { |task| task["task_id"].to_s == task_pk.to_s }
+  end
+
   def post_comment(task_pk, content, responsible_id: nil)
     form = { "comment[commentable_id]" => task_pk,
              "comment[commentable_type]" => "Organize::Task",

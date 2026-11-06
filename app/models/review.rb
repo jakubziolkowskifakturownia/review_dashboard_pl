@@ -15,6 +15,9 @@ class Review < ApplicationRecord
   # Zgodność z zadaniem (świeża sesja task_fit): ten sam cykl poboczny co opis zadania.
   # Werdykt liczy TaskFitImporter, nie model - stąd stała z dozwolonymi wartościami.
   TASK_FIT_STATUSES = TASK_DESCRIPTION_STATUSES
+  # Wynik TaskLinkCheck: nil = link nie był sprawdzany (stare review, link
+  # wpisany ręcznie), `uncertain` blokuje bramkę zgodności i komentarz do zadania.
+  TASK_LINK_STATUSES = %w[confirmed uncertain].freeze
   TASK_FIT_VERDICTS = %w[fits partial misses].freeze
   # Sekcje listy punktów z opisu zadania (task_criteria.json) i wyniku task_fit -
   # jedno źródło dla modelu, importera, joba opisu i helpera.
@@ -134,6 +137,7 @@ class Review < ApplicationRecord
   validates :task_description_status, inclusion: { in: TASK_DESCRIPTION_STATUSES }
   validates :task_comment_status, inclusion: { in: TASK_COMMENT_STATUSES }
   validates :task_fit_status, inclusion: { in: TASK_FIT_STATUSES }
+  validates :task_link_status, inclusion: { in: TASK_LINK_STATUSES }, allow_nil: true
   validates :followup_reviewer_status, :followup_label_status,
             inclusion: { in: FOLLOWUP_STATUSES }, allow_nil: true
   validates :decision, inclusion: { in: DECISIONS }, allow_nil: true
@@ -273,9 +277,18 @@ class Review < ApplicationRecord
   def task_scoped_id
     return nil if task_url.blank?
 
-    prefix = project.task_url_prefix
-    from_prefix = prefix.present? ? task_url.delete_prefix(prefix)[/\A\d+/] : nil
-    from_prefix || task_url[/(\d+)\D*\z/, 1]
+    TaskLink.number(task_url, prefix: project.task_url_prefix)
+  end
+
+  # Nie wiemy na pewno, że task_url to zadanie tego PR-a (patrz TaskLinkCheck).
+  # Dopóki człowiek nie potwierdzi, nic nie czyta AC z tego zadania i nic do niego nie pisze.
+  def task_link_uncertain?
+    task_url.present? && task_link_status == "uncertain"
+  end
+
+  # Komentarz do zadania po decyzji: jest dokąd pisać i wiadomo, że to właściwe miejsce.
+  def task_comment_possible?
+    task_url.present? && !task_link_uncertain?
   end
 
   # Link identyfikujący zadanie — PR, a gdy go nie ma, link do zadania.
@@ -537,9 +550,9 @@ class Review < ApplicationRecord
   end
 
   # Sesja musi mieć co czytać (branch) i z czym konfrontować (lista AC); druga
-  # sesja w locie pisałaby po tym samym pliku.
+  # sesja w locie pisałaby po tym samym pliku. Niepewny link = AC mogą być z cudzego zadania.
   def task_fit_possible?
-    task_fit_gate? && branch.present? && !task_fit_in_progress?
+    task_fit_gate? && branch.present? && !task_fit_in_progress? && !task_link_uncertain?
   end
 
   # Miękka bramka Approve: świadome „mimo to” wymagane, gdy jest lista AC, a wynik

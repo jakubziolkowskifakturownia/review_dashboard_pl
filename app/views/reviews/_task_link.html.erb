@@ -1,0 +1,19 @@
+<%# Niepewny link do zadania (TaskLinkCheck) blokuje opis zadania, bramkę zgodności
+    i komentarz do trackera — stąd na samej górze, z tytułami obok siebie, bo po nich
+    najszybciej widać, czy to to samo. %>
+<div class="task-fit-banner task-fit-misses task-link-banner">
+  <strong>⚠️ Nie mam pewności, że to zadanie tego PR-a</strong>
+  <span class="task-fit-sub"><%= review.task_link_note %></span>
+  <ul class="task-link-titles">
+    <li>PR: <%= review.pr_title.presence || review.pr_url %></li>
+    <li>Zadanie: <%= link_to (review.task_title.presence || review.task_url), review.task_url, target: "_blank", rel: "noopener" %></li>
+  </ul>
+  <span class="task-fit-sub">Dopóki nie potwierdzisz, dashboard nie czyta AC z tego zadania i nic do niego nie pisze.</span>
+  <%= form_with url: review_task_link_path(review), method: :patch, class: "task-link-form" do %>
+    <%# Podpowiedź z notatki (TaskLinkCheck wpisuje tam link do pasującego podzadania)
+        od razu w polu — wtedy wystarczy jeden klik. %>
+    <input type="url" name="task_url" size="60" placeholder="Właściwy link do zadania (puste = zostaw ten)"
+           value="<%= TaskLink.find(review.task_link_note, prefix: review.project.task_url_prefix) %>">
+    <button class="btn btn-primary">Potwierdź zadanie</button>
+  <% end %>
+</div>

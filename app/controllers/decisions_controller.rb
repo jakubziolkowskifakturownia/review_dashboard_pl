@@ -85,7 +85,7 @@ class DecisionsController < ApplicationController
   # Kolejkujemy tylko na jawne życzenie i tylko, gdy jest dokąd pisać — formularz
   # bez task_url w ogóle nie pokazuje checkboxa, ale parametr można spreparować.
   def comment_task?
-    params[:task_comment] == "1" && @review.task_url.present?
+    params[:task_comment] == "1" && @review.task_comment_possible?
   end
 
   # Nazwa do wyświetlenia w panelu — combobox wysyła tylko id, nazwę bierzemy

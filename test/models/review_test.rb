@@ -565,6 +565,25 @@ class ReviewTest < ActiveSupport::TestCase
     assert review.task_fit_gate?
   end
 
+  test "niepewny link do zadania wyłącza bramkę zgodności i komentarz" do
+    review = reviews(:pr_review)
+    review.update!(branch: "sl-fix", task_url: "https://tasks.example.com/1",
+                   task_criteria: { "criteria" => [ { "id" => "ac1", "text" => "x" } ] })
+    assert review.task_fit_possible?
+    assert review.task_comment_possible?
+
+    review.update!(task_link_status: "uncertain")
+    assert_not review.task_fit_possible?
+    assert_not review.task_comment_possible?
+  end
+
+  test "task_scoped_id rozumie nowy format linku z /t/" do
+    review = reviews(:pr_review)
+    review.project.update!(task_url_prefix: "https://tracker.example.com/organize/tasks/")
+    review.update!(task_url: "https://tracker.example.com/organize/tasks/t/37148")
+    assert_equal "37148", review.task_scoped_id
+  end
+
   test "task_fit_possible? wymaga listy AC i brancha, bez pracującej sesji" do
     review = reviews(:pr_review)
     assert_not review.task_fit_possible?
