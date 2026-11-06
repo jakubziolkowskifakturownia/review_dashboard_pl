@@ -314,6 +314,11 @@
 <%# Wszystkie sesje, nie tylko ostatnia: po nieudanym ponowieniu ostatnia bywa tą,
     która padła po kilku sekundach, a praca została w poprzedniej. Kind, status
     i czas trwania są tym, po czym da się je rozróżnić. %>
+<%# Rozmowa z sesją review o tym, co dalej (np. po audycie security), zamiast
+    wysyłania decyzji. Ta sama sesja, którą wznowi followup z dashboardu. %>
+<% if review.terminal_session_run %>
+  <%= button_to "💬 Kontynuuj w iTerm", open_terminal_review_path(review), class: "btn" %>
+<% end %>
 <% if (runs = review.resumable_claude_runs).any? %>
   <details>
     <summary>Wróć do sesji Claude w terminalu</summary>

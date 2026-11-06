@@ -645,6 +645,12 @@ class Review < ApplicationRecord
   # działającego runu nie wystarcza: między kliknięciem a startem workera run
   # jeszcze nie istnieje, więc drugi klik przechodziłby przez tę bramkę.
   # Skończone review nie dostanie już followupu, więc nie ma czego ratować.
+  # Sesja do rozmowy w terminalu. Nie w trakcie cyklu: review, followup
+  # i kompakcja dopisują do tego samego pliku sesji co terminal.
+  def terminal_session_run
+    resumable_session_run unless IN_PROGRESS_STATUSES.include?(status)
+  end
+
   def compactable?
     !finished? && !IN_PROGRESS_STATUSES.include?(status) &&
       running_claude_run.nil? && resumable_session_run.present?

@@ -1556,4 +1556,72 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
     assert_select ".pagehead h1", text: "Poprawka VAT"
     assert_select ".subheadline", count: 0
   end
+
+  # Sesja review na dysku, w configu review — tak, jak zostawia ją udany przebieg.
+  def with_session_on_disk(review)
+    config = Dir.mktmpdir
+    review.update_columns(claude_config: config, status: "reviewed")
+    run = review.claude_runs.create!(kind: "review", claude_config: config, status: "succeeded", session_id: "sess-1")
+    FileUtils.mkdir_p(run.session_file(config).dirname)
+    File.write(run.session_file(config), "{}")
+    yield config
+  ensure
+    FileUtils.remove_entry(config)
+  end
+
+  test "open_terminal wpisuje w iTerm komendę wznowienia sesji review" do
+    review = reviews(:pr_review)
+    with_session_on_disk(review) do |config|
+      calls = []
+      TerminalLauncher.stub(:open, ->(cmd) { calls << cmd }) { post open_terminal_review_path(review) }
+      assert_equal [ "cd /Users/dev/projects/webapp && CLAUDE_CONFIG_DIR=#{config.shellescape} claude --resume sess-1" ], calls
+      assert_redirected_to review_path(review)
+    end
+  end
+
+  # Przez tunel (telefon) klik otworzyłby iTerm na Macu, przy którym nikt nie siedzi.
+  test "open_terminal odmawia żądaniu spoza tego Maca" do
+    review = reviews(:pr_review)
+    with_session_on_disk(review) do
+      TerminalLauncher.stub(:open, ->(_cmd) { flunk "iTerm nie powinien się otworzyć" }) do
+        post open_terminal_review_path(review), headers: { "X-Forwarded-For" => "203.0.113.7" }
+      end
+      assert_redirected_to review_path(review)
+      assert_match(/tylko na tym Macu/, flash[:alert])
+    end
+  end
+
+  # Review, followup i kompakcja dopisują do tego samego pliku sesji co terminal.
+  test "open_terminal odmawia, gdy sesja review właśnie pracuje" do
+    review = reviews(:pr_review)
+    with_session_on_disk(review) do
+      review.update_columns(status: "reviewing")
+      TerminalLauncher.stub(:open, ->(_cmd) { flunk "iTerm nie powinien się otworzyć" }) do
+        post open_terminal_review_path(review)
+      end
+      assert_match(/pracuje/, flash[:alert])
+    end
+  end
+
+  test "open_terminal pokazuje błąd osascript zamiast wywracać stronę" do
+    review = reviews(:pr_review)
+    with_session_on_disk(review) do
+      failing = ->(_cmd) { raise TerminalLauncher::Failed, "Not authorized to send Apple events to iTerm." }
+      TerminalLauncher.stub(:open, failing) { post open_terminal_review_path(review) }
+      assert_redirected_to review_path(review)
+      assert_match(/Not authorized/, flash[:alert])
+    end
+  end
+
+  test "panel pokazuje przycisk iTerm przy sesji do wznowienia, a w trakcie review go chowa" do
+    review = reviews(:pr_review)
+    with_session_on_disk(review) do
+      get review_path(review)
+      assert_select "form[action='#{open_terminal_review_path(review)}']"
+
+      review.update_columns(status: "reviewing")
+      get review_path(review)
+      assert_select "form[action='#{open_terminal_review_path(review)}']", count: 0
+    end
+  end
 end

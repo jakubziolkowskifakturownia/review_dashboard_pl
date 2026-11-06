@@ -116,6 +116,10 @@ claude -p --verbose --output-format stream-json --dangerously-skip-permissions
 - **`--dangerously-skip-permissions`** — sesje działają bez pytań o zgodę.
   Odpalaj review tylko na repo, którym ufasz.
 - **`--resume`** — followupy wracają do sesji review z pełnym kontekstem.
+  Przycisk **💬 Kontynuuj w iTerm** w panelu review otwiera tę samą sesję w nowej
+  karcie iTerm — żeby porozmawiać z Claude o tym, co dalej, zamiast wysyłać decyzję.
+  Działa tylko z przeglądarki na tym Macu (nie przez tunel) i nie w trakcie pracy
+  sesji review. Przy pierwszym kliknięciu macOS pyta o zgodę na sterowanie iTerm.
 - **`--model` / `--effort`** — wybierane per review w UI
   (fable / opus / sonnet / haiku; low → max). Puste = domyślne z configu.
 
