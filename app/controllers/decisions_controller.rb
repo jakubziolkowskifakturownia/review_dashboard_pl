@@ -76,7 +76,7 @@ class DecisionsController < ApplicationController
   # uwagi wdrożone" nie ma od czego liczyć diffu. Padnięty gh nie może wywalić wysyłki
   # decyzji, która już wyszła na GitHuba, więc błąd kończy się brakiem SHA.
   def head_sha_at_decision
-    GithubClient.new.pr_head_sha(@review.pr_url, repo_dir: @review.workdir)
+    GithubClient.new.pr_head_sha(@review.pr_url, repo_dir: @review.github_repo_dir)
   rescue GithubClient::Error => e
     Rails.logger.warn("DecisionsController review #{@review.id}: #{e.message}")
     nil
@@ -85,7 +85,7 @@ class DecisionsController < ApplicationController
   # Kolejkujemy tylko na jawne życzenie i tylko, gdy jest dokąd pisać — formularz
   # bez task_url w ogóle nie pokazuje checkboxa, ale parametr można spreparować.
   def comment_task?
-    params[:task_comment] == "1" && @review.task_url.present?
+    params[:task_comment] == "1" && @review.task_comment_possible?
   end
 
   # Nazwa do wyświetlenia w panelu — combobox wysyła tylko id, nazwę bierzemy

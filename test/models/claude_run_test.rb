@@ -31,6 +31,22 @@ class ClaudeRunTest < ActiveSupport::TestCase
     assert_equal "cd /Users/dev/projects/webapp && CLAUDE_CONFIG_DIR=/c claude --resume abc", run.resume_command
   end
 
+  # Po przełączeniu konta plik sesji leży (skopiowany) w nowym configu, a run pamięta
+  # stary — wznowienie musi iść z configu, w którym plik faktycznie jest.
+  test "resume_command przyjmuje config, w którym leży plik sesji" do
+    run = reviews(:pr_review).claude_runs.create!(kind: "review", claude_config: "/stary", session_id: "abc")
+    assert_equal "cd /Users/dev/projects/webapp && CLAUDE_CONFIG_DIR=/nowy claude --resume abc",
+                 run.resume_command("/nowy")
+  end
+
+  # Komenda nie jest już tylko do przeczytania — przycisk iTerm wpisuje ją do shella.
+  test "resume_command escapuje ścieżki dla shella" do
+    review = reviews(:pr_review)
+    review.update!(worktree_path: "/moje repo")
+    run = review.claude_runs.create!(kind: "review", claude_config: "/c", session_id: "abc")
+    assert_equal "cd /moje\\ repo && CLAUDE_CONFIG_DIR=/c claude --resume abc", run.resume_command
+  end
+
   test "session_file składa ścieżkę z configu, slugu katalogu roboczego i session_id" do
     review = reviews(:pr_review)
     review.update!(worktree_path: "/Users/dev/projects/webapp-jz_recurring_send_email")

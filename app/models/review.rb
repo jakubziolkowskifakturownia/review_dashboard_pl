@@ -15,6 +15,9 @@ class Review < ApplicationRecord
   # Zgodność z zadaniem (świeża sesja task_fit): ten sam cykl poboczny co opis zadania.
   # Werdykt liczy TaskFitImporter, nie model - stąd stała z dozwolonymi wartościami.
   TASK_FIT_STATUSES = TASK_DESCRIPTION_STATUSES
+  # Wynik TaskLinkCheck: nil = link nie był sprawdzany (stare review, link
+  # wpisany ręcznie), `uncertain` blokuje bramkę zgodności i komentarz do zadania.
+  TASK_LINK_STATUSES = %w[confirmed uncertain].freeze
   TASK_FIT_VERDICTS = %w[fits partial misses].freeze
   # Sekcje listy punktów z opisu zadania (task_criteria.json) i wyniku task_fit -
   # jedno źródło dla modelu, importera, joba opisu i helpera.
@@ -71,7 +74,17 @@ class Review < ApplicationRecord
     "readability" => "Czytelność",
     "api" => "API",
     "project_rules" => "Zasady projektu",
-    "qa_playwright" => "QA + Playwright"
+    "qa_playwright" => "QA + Playwright",
+    "sec_pr_audit" => "Audyt security (/sec-pr-audit)",
+    "security_review" => "Security review (/security-review)"
+  }.freeze
+  # Obszary, które sesja robi skillem, a nie samym promptem. Wbudowany skill ma
+  # każda instalacja claude CLI; własny leży w <config>/skills/ i bywa tylko na
+  # jednym koncie. Przy pierwszym podejściu odznaczone: audyt trwa długo i nie
+  # dotyczy każdego PR-a.
+  SKILL_AREAS = {
+    "sec_pr_audit" => { skill: "sec-pr-audit", builtin: false },
+    "security_review" => { skill: "security-review", builtin: true }
   }.freeze
   # Dostępne configi Claude CLI na tej maszynie — wybierane per-review, nie per-projekt.
   # Lista jest per-maszyna, więc żyje w gitignorowanym config/claude_configs.yml
@@ -124,6 +137,7 @@ class Review < ApplicationRecord
   validates :task_description_status, inclusion: { in: TASK_DESCRIPTION_STATUSES }
   validates :task_comment_status, inclusion: { in: TASK_COMMENT_STATUSES }
   validates :task_fit_status, inclusion: { in: TASK_FIT_STATUSES }
+  validates :task_link_status, inclusion: { in: TASK_LINK_STATUSES }, allow_nil: true
   validates :followup_reviewer_status, :followup_label_status,
             inclusion: { in: FOLLOWUP_STATUSES }, allow_nil: true
   validates :decision, inclusion: { in: DECISIONS }, allow_nil: true
@@ -263,9 +277,18 @@ class Review < ApplicationRecord
   def task_scoped_id
     return nil if task_url.blank?
 
-    prefix = project.task_url_prefix
-    from_prefix = prefix.present? ? task_url.delete_prefix(prefix)[/\A\d+/] : nil
-    from_prefix || task_url[/(\d+)\D*\z/, 1]
+    TaskLink.number(task_url, prefix: project.task_url_prefix)
+  end
+
+  # Nie wiemy na pewno, że task_url to zadanie tego PR-a (patrz TaskLinkCheck).
+  # Dopóki człowiek nie potwierdzi, nic nie czyta AC z tego zadania i nic do niego nie pisze.
+  def task_link_uncertain?
+    task_url.present? && task_link_status == "uncertain"
+  end
+
+  # Komentarz do zadania po decyzji: jest dokąd pisać i wiadomo, że to właściwe miejsce.
+  def task_comment_possible?
+    task_url.present? && !task_link_uncertain?
   end
 
   # Link identyfikujący zadanie — PR, a gdy go nie ma, link do zadania.
@@ -364,6 +387,13 @@ class Review < ApplicationRecord
 
   def selected_areas
     Array(scope&.dig("areas"))
+  end
+
+  # Skille z zaznaczonych obszarów, których nie ma w configu tego review. Z dysku,
+  # nie z listy: skill dochodzi i znika poza dashboardem.
+  def missing_area_skills(areas)
+    SKILL_AREAS.values_at(*areas).compact.reject { |area| area[:builtin] }.map { |area| area[:skill] }
+               .reject { |skill| File.exist?(File.join(effective_claude_config, "skills", skill, "SKILL.md")) }
   end
 
   # Domyślnie włączone: review sprzed tej zmiany nie ma klucza w scope, a checkbox
@@ -520,9 +550,9 @@ class Review < ApplicationRecord
   end
 
   # Sesja musi mieć co czytać (branch) i z czym konfrontować (lista AC); druga
-  # sesja w locie pisałaby po tym samym pliku.
+  # sesja w locie pisałaby po tym samym pliku. Niepewny link = AC mogą być z cudzego zadania.
   def task_fit_possible?
-    task_fit_gate? && branch.present? && !task_fit_in_progress?
+    task_fit_gate? && branch.present? && !task_fit_in_progress? && !task_link_uncertain?
   end
 
   # Miękka bramka Approve: świadome „mimo to” wymagane, gdy jest lista AC, a wynik
@@ -645,6 +675,12 @@ class Review < ApplicationRecord
   # działającego runu nie wystarcza: między kliknięciem a startem workera run
   # jeszcze nie istnieje, więc drugi klik przechodziłby przez tę bramkę.
   # Skończone review nie dostanie już followupu, więc nie ma czego ratować.
+  # Sesja do rozmowy w terminalu. Nie w trakcie cyklu: review, followup
+  # i kompakcja dopisują do tego samego pliku sesji co terminal.
+  def terminal_session_run
+    resumable_session_run unless IN_PROGRESS_STATUSES.include?(status)
+  end
+
   def compactable?
     !finished? && !IN_PROGRESS_STATUSES.include?(status) &&
       running_claude_run.nil? && resumable_session_run.present?
@@ -708,6 +744,12 @@ class Review < ApplicationRecord
   # nie widać, że followup wystartuje w nieistniejącym katalogu.
   def worktree_exists?
     own_worktree_path.present? && Dir.exist?(own_worktree_path)
+  end
+
+  # Katalog dla `gh`: wystarczy mu dowolny checkout repo, więc skasowany worktree
+  # spada na repo projektu zamiast wywracać zapytanie ENOENT-em z chdir.
+  def github_repo_dir
+    worktree_exists? ? own_worktree_path : project.repo_path
   end
 
   # Adres środowiska dev postawionego przez skrypt worktree (wzorzec z projektu,

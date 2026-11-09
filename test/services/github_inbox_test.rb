@@ -112,6 +112,48 @@ class GithubInboxTest < ActiveSupport::TestCase
     assert_equal Time.utc(2026, 7, 29, 11), item.signal_at, "sygnałem jest cudzy ruch, nie updatedAt PR-a"
   end
 
+  # Approve drugiego reviewera po moim review to nie pytanie do mnie — piłka nie wraca.
+  test "should skip a reviewed PR when only another reviewer spoke after my review" do
+    github = FakeGithub.new(reviewed: [ pr(23, author: "autor") ], activity: {
+      "https://github.com/acme/webapp/pull/23" => {
+        "reviews" => [ review_event("ja", "2026-07-28T10:00:00Z"),
+                       review_event("kolega", "2026-07-29T11:00:00Z").merge("state" => "APPROVED") ],
+        "comments" => [ comment_event("kolega", "2026-07-29T12:00:00Z") ]
+      }
+    })
+
+    refresh(github)
+
+    assert_empty @project.inbox_items
+  end
+
+  test "should queue a reviewed PR when another reviewer mentioned me after my review" do
+    github = FakeGithub.new(reviewed: [ pr(24, author: "autor") ], activity: {
+      "https://github.com/acme/webapp/pull/24" => {
+        "reviews" => [ review_event("ja", "2026-07-28T10:00:00Z") ],
+        "comments" => [ comment_event("kolega", "2026-07-29T11:00:00Z").merge("body" => "@ja co o tym myślisz?") ]
+      }
+    })
+
+    refresh(github)
+
+    assert_equal [ 24, "kolega" ], [ @project.inbox_items.sole.pr_number, @project.inbox_items.sole.actor ]
+  end
+
+  # Odpowiedź komentarzem (a nie nowym review) też oddaje piłkę autorowi.
+  test "should skip a reviewed PR when I answered with a comment after the author" do
+    github = FakeGithub.new(reviewed: [ pr(25, author: "autor") ], activity: {
+      "https://github.com/acme/webapp/pull/25" => {
+        "reviews" => [ review_event("ja", "2026-07-28T10:00:00Z") ],
+        "comments" => [ comment_event("autor", "2026-07-29T11:00:00Z"), comment_event("ja", "2026-07-29T12:00:00Z") ]
+      }
+    })
+
+    refresh(github)
+
+    assert_empty @project.inbox_items
+  end
+
   test "should skip a reviewed PR when nobody commented at all" do
     github = FakeGithub.new(reviewed: [ pr(22, author: "kolega") ], activity: {
       "https://github.com/acme/webapp/pull/22" => {

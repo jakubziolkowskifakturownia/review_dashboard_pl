@@ -62,15 +62,16 @@ class SelfReviewBoard
     [ [], e.message ]
   end
 
-  # select: wiersz potrzebuje tylko linku i statusu, a pełne rekordy niosą opisy i JSON-y.
+  # select: wiersz potrzebuje linku, statusu i pól self_review? (scope, pr_url, task_url) —
+  # reszta rekordu to opisy i JSON-y, których kafel nie pokazuje.
   def reviews_by_pr
     @reviews_by_pr ||= Review.where(project: @projects).where.not(pr_url: [ nil, "" ])
-                             .select(:id, :pr_url, :status).index_by { |review| GithubClient.pr_key(review.pr_url) }
+                             .select(:id, :pr_url, :task_url, :scope, :status).index_by { |review| GithubClient.pr_key(review.pr_url) }
   end
 
   def reviews_by_branch
     @reviews_by_branch ||= Review.self_reviews.where(project: @projects).where.not(branch: [ nil, "" ])
-                                 .select(:id, :project_id, :branch, :status)
+                                 .select(:id, :project_id, :branch, :pr_url, :task_url, :scope, :status)
                                  .index_by { |review| [ review.project_id, review.branch ] }
   end
 end

@@ -116,6 +116,10 @@ claude -p --verbose --output-format stream-json --dangerously-skip-permissions
 - **`--dangerously-skip-permissions`** — sesje działają bez pytań o zgodę.
   Odpalaj review tylko na repo, którym ufasz.
 - **`--resume`** — followupy wracają do sesji review z pełnym kontekstem.
+  Przycisk **💬 Kontynuuj w iTerm** w panelu review otwiera tę samą sesję w nowej
+  karcie iTerm — żeby porozmawiać z Claude o tym, co dalej, zamiast wysyłać decyzję.
+  Działa tylko z przeglądarki na tym Macu (nie przez tunel) i nie w trakcie pracy
+  sesji review. Przy pierwszym kliknięciu macOS pyta o zgodę na sterowanie iTerm.
 - **`--model` / `--effort`** — wybierane per review w UI
   (fable / opus / sonnet / haiku; low → max). Puste = domyślne z configu.
 
@@ -126,6 +130,7 @@ claude -p --verbose --output-format stream-json --dangerously-skip-permissions
 | `gh` w PATH | **wymagane** | opis PR-a (`gh pr view/diff`) robi sesja Claude, nie dashboard |
 | dostęp do trackera zadań (skill / MCP) | opcjonalne | „Opis zadania" i „Komentarz do zadania" każą sesji **otworzyć `task_url`** — bez skilla do Twojego trackera te kroki skończą się błędem (review działa dalej). Wyjątek: projekt z tokenem integracji (Intum) — wtedy komentarz **wysyła aplikacja przez API**, a sesja tylko pisze jego treść |
 | Playwright w repo projektu | opcjonalne | obszar „QA + Playwright" pisze i odpala test klikający feature |
+| skill `sec-pr-audit` w `<config>/skills/` | opcjonalne | obszar „Audyt security" — bez skilla na wybranym koncie start review z tym obszarem odmawia. Obszar „Security review" używa wbudowanego `/security-review`, więc działa na każdym koncie |
 
 Żadnych innych skilli dashboard nie wymaga — prompty (w `app/prompts/`) są
 samowystarczalne. Wspólny styl odpowiedzi (`_style.md`) jest wstrzykiwany do

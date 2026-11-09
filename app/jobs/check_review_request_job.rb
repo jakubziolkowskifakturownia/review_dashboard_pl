@@ -42,7 +42,7 @@ class CheckReviewRequestJob < ApplicationJob
   private
 
   def pr_review_state(review, github)
-    github.pr_review_state(review.pr_url, repo_dir: review.workdir)
+    github.pr_review_state(review.pr_url, repo_dir: review.github_repo_dir)
   rescue GithubClient::Error => e
     # Stempel i tak zapisujemy — inaczej padający gh byłby odpytywany co wejście na listę.
     Rails.logger.warn("CheckReviewRequestJob review #{review.id}: #{e.message}")
@@ -62,7 +62,7 @@ class CheckReviewRequestJob < ApplicationJob
   # Ostatni stan per osoba (jak PrReviewers): CHANGES_REQUESTED, po którym ta sama
   # osoba dała APPROVED, to zamknięta dyskusja, nie podważenie.
   def pr_challenge(review, info, github)
-    me = github.viewer_login(repo_dir: review.workdir)
+    me = github.viewer_login(repo_dir: review.github_repo_dir)
     latest = Array(info["reviews"]).sort_by { |other| other["submittedAt"].to_s }
                                    .index_by { |other| other.dig("author", "login") }
     challenger = latest.find do |login, other|
@@ -85,7 +85,7 @@ class CheckReviewRequestJob < ApplicationJob
   def rerequested?(info, github, review)
     return false unless info["state"] == "OPEN"
 
-    login = github.viewer_login(repo_dir: review.workdir)
+    login = github.viewer_login(repo_dir: review.github_repo_dir)
     return false unless Array(info["reviewRequests"]).any? { |request| request["login"] == login }
 
     # Akcja „reviewer" po decyzji potrafi dodać własny login — taki request wisi

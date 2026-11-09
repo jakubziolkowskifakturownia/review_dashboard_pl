@@ -21,6 +21,7 @@ class DescribeTaskJobTest < ActiveSupport::TestCase
   test "uzupełnia pusty task_url adresem znalezionym w PR" do
     review = run_with(reviews(:pr_review), "TASK_URL: https://tasks.example.com/999\n\n**Cel** — x.")
     assert_equal "https://tasks.example.com/999", review.task_url
+    assert review.task_link_uncertain?, "link znaleziony przez sesję wymaga potwierdzenia człowieka"
   end
 
   test "nie nadpisuje istniejącego task_url" do

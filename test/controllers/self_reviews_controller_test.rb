@@ -47,6 +47,18 @@ class SelfReviewsControllerTest < ActionDispatch::IntegrationTest
     assert_select "#self_recent #review_queue_#{review.id} a.qttl[href=?]", review_path(review)
   end
 
+  test "should show the fix prompt hint for a reviewed self review of a PR and a branch" do
+    pr_url = "https://github.com/acme/webapp/pull/77"
+    @project.reviews.create!(pr_url: pr_url, status: "reviewed", scope: { "self" => true })
+    @project.reviews.create!(branch: "jz_local", status: "reviewed", scope: { "self" => true })
+    prs = [ { "number" => 77, "title" => "Poprawka VAT", "url" => pr_url, "headRefName" => "jz_vat", "isDraft" => false } ]
+    with_sources(prs: prs, branches: [ branch("jz_local") ]) { get self_reviews_path }
+
+    assert_response :success
+    assert_select "#self_pr_#{@project.id}_77 .qgo", text: "Skopiuj prompt poprawek dla agenta"
+    assert_select "#self_branch_#{@project.id}_jz_local .qgo", text: "Skopiuj prompt poprawek dla agenta"
+  end
+
   test "should switch the left column between review queues and self review with tabs" do
     get root_path
     assert_select ".dash-tabs a.is-active[href=?]", root_path

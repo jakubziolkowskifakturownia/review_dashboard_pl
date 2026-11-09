@@ -51,7 +51,7 @@ class PrSnapshotTest < ActiveSupport::TestCase
     PrSnapshot.fetch!(@review, client: client)
 
     assert_equal %i[files review_comments issue_comments reviews author viewer], client.calls.map { |c| c[:kind] }
-    assert_equal [ @review.workdir ], client.calls.map { |c| c[:repo_dir] }.uniq
+    assert_equal [ @review.github_repo_dir ], client.calls.map { |c| c[:repo_dir] }.uniq
     assert_equal [ @review.pr_url ], client.calls.filter_map { |c| c[:url] }.uniq
   end
 

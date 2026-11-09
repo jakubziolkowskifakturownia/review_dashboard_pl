@@ -14,15 +14,15 @@ class PrSnapshot
 
   def self.fetch!(review, client: GithubClient.new)
     data = { "fetched_at" => Time.current.iso8601,
-             "files" => client.pr_files(review.pr_url, repo_dir: review.workdir),
-             "review_comments" => client.pr_review_comments(review.pr_url, repo_dir: review.workdir),
-             "issue_comments" => client.pr_issue_comments(review.pr_url, repo_dir: review.workdir),
+             "files" => client.pr_files(review.pr_url, repo_dir: review.github_repo_dir),
+             "review_comments" => client.pr_review_comments(review.pr_url, repo_dir: review.github_repo_dir),
+             "issue_comments" => client.pr_issue_comments(review.pr_url, repo_dir: review.github_repo_dir),
              # Cudze review z werdyktem i treścią - patrz PrDiscussion#foreign_reviews.
-             "reviews" => client.pr_reviews_with_bodies(review.pr_url, repo_dir: review.workdir),
+             "reviews" => client.pr_reviews_with_bodies(review.pr_url, repo_dir: review.github_repo_dir),
              # Loginy jadą do artefaktu, a nie do widoku: prompt sesji musi wiedzieć,
              # który głos w wątku należy do autora, a który jest mój.
-             "author" => client.pr_author(review.pr_url, repo_dir: review.workdir),
-             "viewer" => client.viewer_login(repo_dir: review.workdir) }
+             "author" => client.pr_author(review.pr_url, repo_dir: review.github_repo_dir),
+             "viewer" => client.viewer_login(repo_dir: review.github_repo_dir) }
 
     FileUtils.mkdir_p(review.artifacts_dir)
     path_for(review).write(JSON.generate(data))

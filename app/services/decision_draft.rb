@@ -20,6 +20,7 @@ class DecisionDraft
     "summary" => "pełne podsumowanie review z sesji",
     "summary_short" => "pierwszy akapit podsumowania (linia „Krótko:”)",
     "summary_rest" => "podsumowanie bez pierwszego akapitu (puste, gdy jest tylko „Krótko:”)",
+    "security_audit" => "blok „Audyt security” z podsumowania (puste, gdy audytu nie zlecono)",
     "task_fit" => "werdykt zgodności z zadaniem (np. „Rozwiązuje zadanie”)",
     "pr_title" => "tytuł PR-a", "task_title" => "tytuł zadania z trackera", "branch" => "nazwa brancha",
     "blocking_list" => "niespełnione punkty z zadania, z notatką sesji",
@@ -43,6 +44,10 @@ class DecisionDraft
 
     {{summary_short}}
     {{/summary_short}}
+    {{#security_audit}}
+
+    {{security_audit}}
+    {{/security_audit}}
 
   MUSTACHE
   FOOTER = <<~MUSTACHE
@@ -149,7 +154,7 @@ class DecisionDraft
       blocking, unverifiable = blocking_items, unverifiable_items
       summary = @review.summary.to_s.strip.presence
       short, rest = summary.to_s.split(/\n[ \t]*\n/, 2).map { |part| part.to_s.strip.presence }
-      { summary: summary, summary_short: short, summary_rest: rest,
+      { summary: summary, summary_short: short, summary_rest: rest, security_audit: security_audit(summary),
         task_fit: (@review.task_fit_label if @review.task_fit_verdict),
         pr_title: @review.pr_title.presence, task_title: @review.task_title.presence, branch: @review.branch.presence,
         blocking_list: lines(blocking) { |item| item_line(item) },
@@ -163,6 +168,15 @@ class DecisionDraft
   end
 
   private
+
+  SECURITY_AUDIT_HEADING = "**Audyt security**"
+
+  # Blok, który prompt review każe napisać przy zaznaczonym audycie (patrz
+  # app/prompts/review.md.erb). Wyciągany z summary, a nie z osobnego pola result.json:
+  # bez migracji i bez zmiany importera, a stare review bez bloku dają po prostu nil.
+  def security_audit(summary)
+    summary.to_s.split(/\n[ \t]*\n/).map(&:strip).find { |block| block.start_with?(SECURITY_AUDIT_HEADING) }
+  end
 
   # presence, bo w Mustache „" jest prawdą i blok z nagłówkiem by został.
   def lines(entries) = entries.map { |entry| "- #{yield(entry)}" }.join("\n").presence

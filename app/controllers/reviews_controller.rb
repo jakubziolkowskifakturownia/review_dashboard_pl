@@ -10,7 +10,7 @@ class ReviewsController < ApplicationController
   # który padł. Klucz to `kind` ostatniego runa; brak runa = ponawiamy describe.
   REQUEUE_STATUSES = { "review" => "reviewing", "followup" => "reviewing", "describe" => "describing" }.freeze
 
-  before_action :set_review, only: %i[show destroy start abort retry_run refresh_task_description refresh_task_fit remove_worktree check_worktree_health reimport switch_config compact verify_fixes verify_findings override_status]
+  before_action :set_review, only: %i[show destroy start abort retry_run refresh_task_description refresh_task_fit remove_worktree check_worktree_health reimport switch_config compact verify_fixes verify_findings open_terminal override_status]
   before_action :set_project, only: %i[index new create recheck_github]
 
   def index
@@ -132,7 +132,8 @@ class ReviewsController < ApplicationController
     @review.task_description_status = "queued" if params[:fetch_task_description] == "1" && @review.task_source?
     if @review.save
       DescribeReviewJob.perform_later(@review)
-      DescribeTaskJob.perform_later(@review) if @review.task_description_status == "queued"
+      # Z PR-em opis zadania kolejkuje DescribeReviewJob, gdy już wie, które to zadanie.
+      DescribeTaskJob.perform_later(@review) if @review.task_description_status == "queued" && @review.pr_url.blank?
       redirect_to @review
     else
       flash.now[:error] = create_error_message
@@ -161,9 +162,15 @@ class ReviewsController < ApplicationController
     # result.json i findings pierwszego przebiegu.
     return redirect_to(@review, alert: "Review nie jest gotowy do startu (status: #{@review.status})") unless @review.status == "ready"
 
+    areas = Array(params[:areas])
+    if (missing = @review.missing_area_skills(areas)).any?
+      config = Review.claude_config_label(@review.effective_claude_config)
+      return redirect_to(@review, alert: "Skilla #{missing.join(", ")} nie ma na koncie #{config} — przełącz konto albo odznacz ten obszar")
+    end
+
     # Status przestawiamy tu, nie w jobie: między kolejkowaniem a startem workera
     # potrafi minąć kilkanaście minut i panel nie może wtedy wyglądać jak przed kliknięciem.
-    @review.start!(areas: params[:areas], notes: params[:notes], inline_comments: params[:inline_comments] == "1")
+    @review.start!(areas: areas, notes: params[:notes], inline_comments: params[:inline_comments] == "1")
     RunReviewJob.perform_later(@review)
     redirect_to @review
   end
@@ -288,6 +295,23 @@ class ReviewsController < ApplicationController
     @review.update!(status: "reviewing")
     CompactReviewJob.perform_later(@review, previous_status)
     redirect_to review_path(@review), notice: "Kompaktuję sesję — rozmiar kontekstu zmierzy się przy następnej sesji"
+  end
+
+  # Rozmowa z sesją review w terminalu, bez kopiowania komendy. Tylko z tego Maca:
+  # przez tunel klik otworzyłby iTerm, przy którym nikt nie siedzi. Config review,
+  # nie runa — po przełączeniu konta plik sesji leży już w nowym.
+  def open_terminal
+    return redirect_to(@review, alert: "iTerm otwiera się tylko na tym Macu, nie przez tunel") unless request.local?
+
+    run = @review.terminal_session_run
+    unless run
+      return redirect_to(@review, alert: "Nie ma teraz sesji do wznowienia — review jeszcze pracuje albo sesji nie ma na tym koncie")
+    end
+
+    TerminalLauncher.open(run.resume_command(@review.effective_claude_config))
+    redirect_to @review, notice: "Sesja otwarta w iTerm"
+  rescue TerminalLauncher::Failed => e
+    redirect_to @review, alert: "Nie udało się otworzyć iTerm: #{e.message}"
   end
 
   # Ręczne powtórzenie health-checku — po naprawieniu środowiska ostrzeżenie musi

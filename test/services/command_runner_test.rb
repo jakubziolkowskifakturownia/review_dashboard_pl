@@ -104,4 +104,27 @@ class CommandRunnerTest < ActiveSupport::TestCase
     result = CommandRunner.run([ "/bin/sh", "-c", "echo $FOO" ], env: { "FOO" => "bar" }, chdir: Dir.tmpdir)
     assert_equal "bar\n", result.stdout
   end
+
+  # Sesja Claude potrafi wysłać wynik i nie wyjść, bo czeka na odpalone przez siebie
+  # procesy (serwer testowy, LSP). Po sygnale końca liczy się wynik, nie exit.
+  test "proces wiszący po sygnale końca jest kończony po exit_grace i liczy się jako sukces" do
+    started = Time.current
+    lines = []
+    result = CommandRunner.stream([ "/bin/sh", "-c", "echo start; echo DONE; sleep 30" ], chdir: Dir.tmpdir,
+                                  timeout: 60, idle_timeout: 20, exit_grace: 1,
+                                  finished_when: ->(line) { line.start_with?("DONE") }) { |l| lines << l.chomp }
+    assert_equal(
+      { lines: %w[start DONE], finished_early: true, idle: false, timed_out: false, success: true },
+      { lines: lines, finished_early: result.finished_early, idle: result.idle_timed_out,
+        timed_out: result.timed_out, success: result.success? }
+    )
+    assert_operator Time.current - started, :<, 10
+  end
+
+  test "proces wychodzący sam po sygnale końca nie jest ubijany" do
+    result = CommandRunner.stream([ "/bin/sh", "-c", "echo DONE; exit 0" ], chdir: Dir.tmpdir, timeout: 10,
+                                  exit_grace: 5, finished_when: ->(line) { line.start_with?("DONE") }) { }
+    assert_equal({ exit_code: 0, finished_early: false, success: true },
+                 { exit_code: result.exit_code, finished_early: result.finished_early, success: result.success? })
+  end
 end

@@ -53,6 +53,7 @@ Rails.application.routes.draw do
       post :compact
       post :verify_fixes
       post :verify_findings
+      post :open_terminal
       patch :override_status
       # Podgląd zmian ma własny kontroler (wzorzec `directory` na projekcie):
       # ReviewsController jest już duży, a renderowanie diffu nie dzieli z nim nic
@@ -64,6 +65,7 @@ Rails.application.routes.draw do
     resource :decision, only: :create
     resource :followup, only: :create
     resource :task_comment, only: :create
+    resource :task_link, only: :update
     resource :followup_actions, only: :create
   end
 end

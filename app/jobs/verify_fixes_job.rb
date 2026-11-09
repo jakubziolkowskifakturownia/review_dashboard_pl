@@ -40,7 +40,7 @@ class VerifyFixesJob < ApplicationJob
   # Brak SHA (padnięty gh) traktujemy jak „nie wiem" i pytamy sesję — lepiej zapłacić
   # za jedną sesję niż wmówić userowi, że autor nic nie zmienił.
   def current_head(review, github)
-    github.pr_head_sha(review.pr_url, repo_dir: review.workdir)
+    github.pr_head_sha(review.pr_url, repo_dir: review.github_repo_dir)
   rescue GithubClient::Error => e
     Rails.logger.warn("VerifyFixesJob review #{review.id}: #{e.message}")
     nil

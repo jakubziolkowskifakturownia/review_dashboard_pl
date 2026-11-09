@@ -64,12 +64,15 @@ class GithubInbox
   end
 
   # `reviewed-by` zwraca każdy PR, który kiedykolwiek review'owałem — o piłce
-  # decyduje dopiero porównanie ostatniego cudzego ruchu z moim ostatnim review.
+  # decyduje dopiero porównanie ostatniego ruchu „do mnie" z moim ostatnim ruchem.
+  # Mój ruch to review ALBO komentarz: odpowiedź w wątku też oddaje piłkę autorowi.
+  # Ruch „do mnie" to wszystko od autora PR-a plus cudze wpisy z @mną — approve czy
+  # uwagi drugiego reviewera są skierowane do autora, nie do mnie.
   def commented_item(project, pr)
     activity = @github.pr_activity(pr["url"], repo_dir: project.repo_path)
-    mine = timestamps(activity["reviews"], login: @login).max
-    theirs = (timestamps(activity["reviews"], except: @login) +
-              timestamps(activity["comments"], except: @login)).max
+    events = Array(activity["reviews"]) + Array(activity["comments"])
+    mine = timestamps(events, login: @login).max
+    theirs = timestamps(events.select { |event| addressed_to_me?(event, author_of(pr)) }).max
     return nil unless mine && theirs && theirs > mine
 
     item_for(pr, reason: "commented", signal_at: theirs, actor: last_actor(activity, theirs),
@@ -121,6 +124,13 @@ class GithubInbox
       stamp = event["submittedAt"] || event["createdAt"]
       Time.zone.parse(stamp) if stamp
     end
+  end
+
+  def addressed_to_me?(event, pr_author)
+    who = event.dig("author", "login")
+    return false if who.blank? || who == @login
+
+    who == pr_author || event["body"].to_s.match?(/@#{Regexp.escape(@login)}\b/i)
   end
 
   def last_actor(activity, at)

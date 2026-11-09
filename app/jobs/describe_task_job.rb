@@ -12,7 +12,13 @@ class DescribeTaskJob < ApplicationJob
     text = session_factory.call(run).call(PromptBuilder.describe_task(review))
     url, body = split_task_url(text.to_s)
     attrs = { task_description: body, task_description_status: "ready" }
-    attrs[:task_url] = url if review.task_url.blank? && url.present?
+    # reload: DescribeReviewJob mógł w międzyczasie ustalić link, a stary obiekt
+    # nadpisałby go tym, co sesja znalazła sama.
+    if review.reload.task_url.blank? && url.present?
+      # Zadanie znalezione przez sesję, a nie wskazane w PR-ze ani przez człowieka.
+      attrs.merge!(task_url: url, task_link_status: "uncertain",
+                   task_link_note: "Link do zadania znalazła sesja opisu zadania — nie ma go w opisie PR-a.")
+    end
     attrs.merge!(criteria_attrs(review))
     # Świeży opis widział wszystkie komentarze - od tego punktu liczymy nowe.
     tracker = review.tracker_task_attrs

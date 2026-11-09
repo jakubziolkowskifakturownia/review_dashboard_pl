@@ -22,6 +22,12 @@ default: &default
     class: RefreshAllInboxesJob
     schedule: every 60 minutes
 
+  # Solid Queue sprząta claimy znikniętego workera tylko przy starcie supervisora —
+  # bez tego review potrafi wisieć do restartu apki (patrz OrphanedJobsSweep).
+  sweep_orphaned_jobs:
+    class: SweepOrphanedJobsJob
+    schedule: every minute
+
 development:
   <<: *default
 

@@ -5,6 +5,7 @@ class TaskCommentsController < ApplicationController
   def create
     review = Review.find(params[:review_id])
     return redirect_to(review, alert: "Ten review nie ma linku do zadania") if review.task_url.blank?
+    return redirect_to(review, alert: "Najpierw potwierdź zadanie tego PR-a") if review.task_link_uncertain?
 
     # Guard na podwójny klik jak przy opisie zadania: drugi job w locie pisałby
     # po tym samym polu.

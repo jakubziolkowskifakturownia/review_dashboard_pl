@@ -92,11 +92,13 @@ class ClaudeRun < ApplicationRecord
   end
 
   # cd jest obowiązkowe: claude trzyma sesje per katalog projektu — resume
-  # z innego cwd kończy się "No conversation found".
-  def resume_command
+  # z innego cwd kończy się "No conversation found". Config z zewnątrz, gdy plik
+  # sesji skopiowano na inne konto (patrz session_available_in?).
+  def resume_command(config = claude_config)
     return if session_id.blank?
 
-    "cd #{review.workdir} && CLAUDE_CONFIG_DIR=#{claude_config} claude --resume #{session_id}"
+    "cd #{review.workdir.to_s.shellescape} && CLAUDE_CONFIG_DIR=#{config.to_s.shellescape} " \
+      "claude --resume #{session_id.shellescape}"
   end
 
   # Claude CLI trzyma sesje pod <CLAUDE_CONFIG_DIR>/projects/<slug>/<session_id>.jsonl,

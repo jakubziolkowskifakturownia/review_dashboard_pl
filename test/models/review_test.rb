@@ -228,6 +228,29 @@ class ReviewTest < ActiveSupport::TestCase
     assert_nil review.available_docs_path
   end
 
+  # Sesja na koncie bez skilla nie padnie, tylko zrobi zwykłe review — a panel
+  # pokaże wynik tak, jakby audyt security się odbył.
+  test "missing_area_skills: skill spoza wybranego configu jest brakujący" do
+    config = Dir.mktmpdir
+    review = reviews(:pr_review)
+    review.stub(:effective_claude_config, config) do
+      assert_equal %w[sec-pr-audit], review.missing_area_skills(%w[functionality sec_pr_audit])
+
+      FileUtils.mkdir_p(File.join(config, "skills", "sec-pr-audit"))
+      File.write(File.join(config, "skills", "sec-pr-audit", "SKILL.md"), "---")
+      assert_empty review.missing_area_skills(%w[functionality sec_pr_audit])
+    end
+  ensure
+    FileUtils.remove_entry(config)
+  end
+
+  test "missing_area_skills: wbudowany /security-review jest w każdym configu" do
+    review = reviews(:pr_review)
+    review.stub(:effective_claude_config, "/nie/ma/takiego/configu") do
+      assert_empty review.missing_area_skills(%w[security_review])
+    end
+  end
+
   test "scope przechowuje obszary i notatki" do
     review = reviews(:pr_review)
     review.update!(scope: { "areas" => %w[functionality qa_playwright], "notes" => "sprawdź VAT" })
@@ -540,6 +563,25 @@ class ReviewTest < ActiveSupport::TestCase
     assert_equal [ { "id" => "ac1", "text" => "Kod dochodzi", "kind" => "criterion" },
                    { "id" => "t1", "text" => "Autor odczytał log?", "kind" => "trap" } ], review.task_criteria_list
     assert review.task_fit_gate?
+  end
+
+  test "niepewny link do zadania wyłącza bramkę zgodności i komentarz" do
+    review = reviews(:pr_review)
+    review.update!(branch: "sl-fix", task_url: "https://tasks.example.com/1",
+                   task_criteria: { "criteria" => [ { "id" => "ac1", "text" => "x" } ] })
+    assert review.task_fit_possible?
+    assert review.task_comment_possible?
+
+    review.update!(task_link_status: "uncertain")
+    assert_not review.task_fit_possible?
+    assert_not review.task_comment_possible?
+  end
+
+  test "task_scoped_id rozumie nowy format linku z /t/" do
+    review = reviews(:pr_review)
+    review.project.update!(task_url_prefix: "https://tracker.example.com/organize/tasks/")
+    review.update!(task_url: "https://tracker.example.com/organize/tasks/t/37148")
+    assert_equal "37148", review.task_scoped_id
   end
 
   test "task_fit_possible? wymaga listy AC i brancha, bez pracującej sesji" do

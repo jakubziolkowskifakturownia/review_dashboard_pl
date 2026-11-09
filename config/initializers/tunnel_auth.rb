@@ -1,16 +1,15 @@
 # Wystawienie dashboardu przez tunel (cloudflared) — bramka na hasło + dozwolony host tunelu.
 # Aktywne wyłącznie gdy ustawiony jest TUNNEL_PASSWORD; bez tej zmiennej nic się nie zmienia.
-return unless Rails.env.development?
-
-tunnel_password = ENV["TUNNEL_PASSWORD"].presence
-return if tunnel_password.nil?
+# Sama klasa jest definiowana zawsze, żeby testy mogły ją sprawdzić bez zmiennej.
 
 # Basic auth odpadł, bo przeglądarki mobilne i wbudowane w komunikatory bywają, że nie
 # pokazują promptu, a handshake WebSocketu i tak nie niesie nagłówka Authorization.
 # Cookie leci z każdym żądaniem, też z /cable, więc jedna bramka chroni całość.
 class TunnelGate
   COOKIE = "tunnel_key"
-  TUNNEL_HOST_SUFFIX = ".trycloudflare.com"
+  LOCAL_HOSTS = %w[localhost 127.0.0.1 [::1]].freeze
+  # Dokleja je proxy po drodze (Cloudflare zawsze), przeglądarka na tym Macu — nie.
+  PROXY_HEADERS = %w[HTTP_X_FORWARDED_FOR HTTP_X_FORWARDED_HOST HTTP_FORWARDED HTTP_CF_CONNECTING_IP].freeze
   UNLOCK_PATH = "/unlock"
   UNLOCK_PREFIX = "#{UNLOCK_PATH}/"
 
@@ -27,7 +26,7 @@ class TunnelGate
   def call(env)
     request = Rack::Request.new(env)
 
-    return @app.call(env) unless from_tunnel?(request)
+    return @app.call(env) if local?(env)
     return @app.call(env) if unlocked?(request)
     return grant(request) if correct_key?(key_from(request))
 
@@ -35,9 +34,12 @@ class TunnelGate
   end
 
   private
-    # Ruch spoza tunelu (localhost) zostaje bez zmian — bramka pilnuje tylko wejścia z sieci.
-    def from_tunnel?(request)
-      request.host.to_s.end_with?(TUNNEL_HOST_SUFFIX)
+    # Bez hasła wchodzi tylko ruch jawnie lokalny, cała reszta trafia na bramkę.
+    # Nie request.host: Rack bierze go z X-Forwarded-Host/Forwarded, które ustawia klient.
+    # Surowy Host plus brak nagłówków proxy — tych Cloudflare klientowi usunąć nie da.
+    def local?(env)
+      host = env["HTTP_HOST"].to_s.sub(/:\d+\z/, "")
+      LOCAL_HOSTS.include?(host) && PROXY_HEADERS.none? { |header| env.key?(header) }
     end
 
     def unlocked?(request)
@@ -63,9 +65,9 @@ class TunnelGate
       )
 
       # Formularz tylko dla nawigacji; żądania w tle (assety, WebSocket) dostają gołe 403.
-      return [403, { "content-type" => "text/plain" }, ["403 Forbidden\n"]] unless navigation?(request)
+      return [ 403, { "content-type" => "text/plain" }, [ "403 Forbidden\n" ] ] unless navigation?(request)
 
-      [403, { "content-type" => "text/html; charset=utf-8", "cache-control" => "no-store" }, [login_page]]
+      [ 403, { "content-type" => "text/html; charset=utf-8", "cache-control" => "no-store" }, [ login_page ] ]
     end
 
     def navigation?(request)
@@ -111,7 +113,7 @@ class TunnelGate
 
       status = request.post? ? 303 : 302
 
-      [status, { "location" => target, "set-cookie" => cookie, "content-type" => "text/plain" }, ["OK\n"]]
+      [ status, { "location" => target, "set-cookie" => cookie, "content-type" => "text/plain" }, [ "OK\n" ] ]
     end
 
     # Odblokowanie prowadzi na stronę główną; przy `?k=` zostaje ta sama ścieżka.
@@ -123,8 +125,12 @@ class TunnelGate
     end
 end
 
-Rails.application.configure do
-  config.hosts << ".trycloudflare.com"
-end
+tunnel_password = ENV["TUNNEL_PASSWORD"].presence
 
-Rails.application.config.middleware.insert_before 0, TunnelGate, tunnel_password
+if Rails.env.development? && tunnel_password
+  Rails.application.configure do
+    config.hosts << ".trycloudflare.com"
+  end
+
+  Rails.application.config.middleware.insert_before 0, TunnelGate, tunnel_password
+end

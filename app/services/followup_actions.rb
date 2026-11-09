@@ -6,9 +6,9 @@
 class FollowupActions
   ACTIONS = [
     { value: :followup_reviewer_login, status: :followup_reviewer_status, error: :followup_reviewer_error,
-      run: ->(client, review, login) { client.add_reviewer(review.pr_url, login: login, repo_dir: review.workdir) } },
+      run: ->(client, review, login) { client.add_reviewer(review.pr_url, login: login, repo_dir: review.github_repo_dir) } },
     { value: :followup_label_name, status: :followup_label_status, error: :followup_label_error,
-      run: ->(client, review, name) { client.add_label(review.pr_url, name: name, repo_dir: review.workdir) } }
+      run: ->(client, review, name) { client.add_label(review.pr_url, name: name, repo_dir: review.github_repo_dir) } }
   ].freeze
 
   def self.call(review, client: GithubClient.new)

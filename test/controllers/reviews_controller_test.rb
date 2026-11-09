@@ -310,12 +310,20 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
     assert_select ".flash-error a[href=?]", review_path(existing)
   end
 
-  test "create z checkboxem kolejkuje opis zadania" do
-    assert_enqueued_with(job: DescribeTaskJob) do
+  # Z PR-em opis zadania czeka na DescribeReviewJob — dopiero on ustala, które to zadanie.
+  test "create z checkboxem i PR-em zostawia opis zadania w kolejce dla joba opisu PR-a" do
+    assert_no_enqueued_jobs(only: DescribeTaskJob) do
       post project_reviews_path(@project),
            params: { review: { pr_url: "https://github.com/acme/webapp/pull/77" }, fetch_task_description: "1" }
     end
     assert_equal "queued", Review.order(:id).last.task_description_status
+  end
+
+  test "create z checkboxem i samym zadaniem kolejkuje opis zadania od razu" do
+    assert_enqueued_with(job: DescribeTaskJob) do
+      post project_reviews_path(@project),
+           params: { review: { task_url: "https://tasks.example.com/778" }, fetch_task_description: "1" }
+    end
   end
 
   test "create bez checkboxa zostawia skipped i nie kolejkuje" do
@@ -415,6 +423,29 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
     assert_select ".md strong", text: "Ważne:"
     assert_select ".md li", text: "punkt"
     assert_select ".md code", text: "kod"
+  end
+
+  # Audyt security to kilkadziesiąt minut sesji — ma być świadomym wyborem, nie
+  # skutkiem kliknięcia „Start review" z domyślnymi checkboxami.
+  test "przy pierwszym podejściu obszary security są odznaczone, reszta zaznaczona" do
+    review = reviews(:pr_review)
+    review.update!(status: "ready", description: "OPIS")
+    get review_path(review)
+    assert_select "input[type=checkbox][name='areas[]'][value=functionality][checked]"
+    Review::SKILL_AREAS.each_key do |key|
+      assert_select "input[type=checkbox][name='areas[]'][value=#{key}]:not([checked])"
+    end
+  end
+
+  test "start odmawia, gdy skilla z zaznaczonego obszaru nie ma w configu review" do
+    review = reviews(:pr_review)
+    review.update!(status: "ready", worktree_path: Dir.tmpdir)
+    assert_no_enqueued_jobs(only: RunReviewJob) do
+      post start_review_path(review), params: { areas: %w[functionality sec_pr_audit] }
+    end
+    assert_redirected_to review_path(review)
+    assert_match(/sec-pr-audit/, flash[:alert])
+    assert_equal "ready", review.reload.status
   end
 
   test "ekran ready odtwarza poprzedni wybór checkboxów i notatki" do
@@ -1555,5 +1586,73 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
     get review_path(review)
     assert_select ".pagehead h1", text: "Poprawka VAT"
     assert_select ".subheadline", count: 0
+  end
+
+  # Sesja review na dysku, w configu review — tak, jak zostawia ją udany przebieg.
+  def with_session_on_disk(review)
+    config = Dir.mktmpdir
+    review.update_columns(claude_config: config, status: "reviewed")
+    run = review.claude_runs.create!(kind: "review", claude_config: config, status: "succeeded", session_id: "sess-1")
+    FileUtils.mkdir_p(run.session_file(config).dirname)
+    File.write(run.session_file(config), "{}")
+    yield config
+  ensure
+    FileUtils.remove_entry(config)
+  end
+
+  test "open_terminal wpisuje w iTerm komendę wznowienia sesji review" do
+    review = reviews(:pr_review)
+    with_session_on_disk(review) do |config|
+      calls = []
+      TerminalLauncher.stub(:open, ->(cmd) { calls << cmd }) { post open_terminal_review_path(review) }
+      assert_equal [ "cd /Users/dev/projects/webapp && CLAUDE_CONFIG_DIR=#{config.shellescape} claude --resume sess-1" ], calls
+      assert_redirected_to review_path(review)
+    end
+  end
+
+  # Przez tunel (telefon) klik otworzyłby iTerm na Macu, przy którym nikt nie siedzi.
+  test "open_terminal odmawia żądaniu spoza tego Maca" do
+    review = reviews(:pr_review)
+    with_session_on_disk(review) do
+      TerminalLauncher.stub(:open, ->(_cmd) { flunk "iTerm nie powinien się otworzyć" }) do
+        post open_terminal_review_path(review), headers: { "X-Forwarded-For" => "203.0.113.7" }
+      end
+      assert_redirected_to review_path(review)
+      assert_match(/tylko na tym Macu/, flash[:alert])
+    end
+  end
+
+  # Review, followup i kompakcja dopisują do tego samego pliku sesji co terminal.
+  test "open_terminal odmawia, gdy sesja review właśnie pracuje" do
+    review = reviews(:pr_review)
+    with_session_on_disk(review) do
+      review.update_columns(status: "reviewing")
+      TerminalLauncher.stub(:open, ->(_cmd) { flunk "iTerm nie powinien się otworzyć" }) do
+        post open_terminal_review_path(review)
+      end
+      assert_match(/pracuje/, flash[:alert])
+    end
+  end
+
+  test "open_terminal pokazuje błąd osascript zamiast wywracać stronę" do
+    review = reviews(:pr_review)
+    with_session_on_disk(review) do
+      failing = ->(_cmd) { raise TerminalLauncher::Failed, "Not authorized to send Apple events to iTerm." }
+      TerminalLauncher.stub(:open, failing) { post open_terminal_review_path(review) }
+      assert_redirected_to review_path(review)
+      assert_match(/Not authorized/, flash[:alert])
+    end
+  end
+
+  test "panel pokazuje przycisk iTerm przy sesji do wznowienia, a w trakcie review go chowa" do
+    review = reviews(:pr_review)
+    with_session_on_disk(review) do
+      get review_path(review)
+      assert_select "form[action='#{open_terminal_review_path(review)}']"
+
+      review.update_columns(status: "reviewing")
+      get review_path(review)
+      assert_select "form[action='#{open_terminal_review_path(review)}']", count: 0
+    end
   end
 end

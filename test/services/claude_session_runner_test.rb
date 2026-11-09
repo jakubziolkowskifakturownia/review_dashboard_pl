@@ -5,19 +5,23 @@ class ClaudeSessionRunnerTest < ActiveSupport::TestCase
   class FakeRunner
     attr_reader :calls
 
-    def initialize(lines:, exit_code: 0, timed_out: false, stderr: "boom")
+    def initialize(lines:, exit_code: 0, timed_out: false, stderr: "boom", finished_early: false)
       @lines = lines
       @exit_code = exit_code
       @timed_out = timed_out
       @stderr = stderr
+      @finished_early = finished_early
       @calls = []
     end
 
-    def stream(cmd, env:, chdir:, timeout:, idle_timeout: nil, stdin_data: nil, on_pid: nil, &block)
-      @calls << { cmd: cmd, env: env, chdir: chdir, timeout: timeout, idle_timeout: idle_timeout, stdin_data: stdin_data }
+    def stream(cmd, env:, chdir:, timeout:, idle_timeout: nil, stdin_data: nil, on_pid: nil,
+               finished_when: nil, exit_grace: nil, &block)
+      @calls << { cmd: cmd, env: env, chdir: chdir, timeout: timeout, idle_timeout: idle_timeout, stdin_data: stdin_data,
+                  finished_when: finished_when, exit_grace: exit_grace }
       on_pid&.call(4242)
       @lines.each { |l| block.call(l + "\n") }
-      CommandRunner::Result.new(exit_code: @exit_code, stdout: "", stderr: @stderr, timed_out: @timed_out)
+      CommandRunner::Result.new(exit_code: @exit_code, stdout: "", stderr: @stderr, timed_out: @timed_out,
+                                finished_early: @finished_early)
     end
   end
 
@@ -203,5 +207,27 @@ class ClaudeSessionRunnerTest < ActiveSupport::TestCase
     ClaudeSessionRunner.new(@run, runner: fake).call("x")
     assert_equal %w[claude -p --verbose --output-format stream-json --dangerously-skip-permissions --model opus --effort max],
                  fake.calls.first[:cmd]
+  end
+
+  test "koniec sesji rozpoznaje po evencie result i daje jej chwilę na wyjście" do
+    fake = FakeRunner.new(lines: [])
+    ClaudeSessionRunner.new(@run, runner: fake).call("x") rescue ClaudeSessionRunner::Failed
+    call = fake.calls.first
+    result_line = { type: "result", subtype: "success", result: "OPIS" }.to_json
+    text_line = { type: "assistant", message: { content: [ { type: "text", text: "\"type\":\"result\"" } ] } }.to_json
+    assert_equal(
+      { exit_grace: ClaudeSessionRunner::RESULT_EXIT_GRACE, result_line: true, text_line: false },
+      { exit_grace: call[:exit_grace], result_line: call[:finished_when].call(result_line),
+        text_line: call[:finished_when].call(text_line) }
+    )
+  end
+
+  # Wynik przyszedł, ale proces nie wyszedł sam (czekał na swoje procesy w tle) —
+  # to sukces, a nie zawieszenie do ponowienia.
+  test "sesja dobita po wyniku kończy się sukcesem" do
+    fake = FakeRunner.new(lines: [ { type: "result", subtype: "success", result: "OPIS" }.to_json ],
+                          exit_code: -1, finished_early: true)
+    result = ClaudeSessionRunner.new(@run, runner: fake).call("x")
+    assert_equal({ result: "OPIS", status: "succeeded" }, { result: result, status: @run.reload.status })
   end
 end

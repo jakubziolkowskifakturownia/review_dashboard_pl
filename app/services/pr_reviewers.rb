@@ -29,7 +29,7 @@ class PrReviewers
 
   def fetch
     me = viewer_login
-    @client.pr_reviews(@review.pr_url, repo_dir: @review.workdir)
+    @client.pr_reviews(@review.pr_url, repo_dir: @review.github_repo_dir)
            .sort_by { |r| r["submittedAt"].to_s }
            .each_with_object({}) { |r, last| last[r.dig("author", "login")] = r["state"] }
            .reject { |login, _| login.blank? || login == me }
@@ -38,7 +38,7 @@ class PrReviewers
 
   # Brak własnego loginu nie może wywalić listy — najwyżej pojawię się na niej sam.
   def viewer_login
-    @client.viewer_login(repo_dir: @review.workdir)
+    @client.viewer_login(repo_dir: @review.github_repo_dir)
   rescue GithubClient::Error
     nil
   end
