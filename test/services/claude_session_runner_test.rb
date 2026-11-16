@@ -222,6 +222,13 @@ class ClaudeSessionRunnerTest < ActiveSupport::TestCase
     )
   end
 
+  test "pusty result z powiadomienia o zadaniu w tle nie kończy sesji" do
+    fake = FakeRunner.new(lines: [])
+    ClaudeSessionRunner.new(@run, runner: fake).call("x") rescue ClaudeSessionRunner::Failed
+    line = { type: "result", subtype: "success", result: "", origin: { kind: "task-notification" } }.to_json
+    assert_not fake.calls.first[:finished_when].call(line)
+  end
+
   # Wynik przyszedł, ale proces nie wyszedł sam (czekał na swoje procesy w tle) —
   # to sukces, a nie zawieszenie do ponowienia.
   test "sesja dobita po wyniku kończy się sukcesem" do

@@ -29,6 +29,14 @@ class StreamJsonParserTest < ActiveSupport::TestCase
     )
   end
 
+  # Wznowiona sesja z zadaniem w tle najpierw domyka powiadomienie o nim pustym
+  # `result` — to nie koniec tury, o którą prosiliśmy.
+  test "result z powiadomienia o zadaniu w tle nie jest wynikiem sesji" do
+    line = { type: "result", subtype: "success", result: "", num_turns: 0,
+             origin: { kind: "task-notification" } }.to_json
+    assert_nil StreamJsonParser.parse_line(line)
+  end
+
   # Sedno zmiany: wiadomość z samym tool_use nie ma tekstu, ale to ona niesie
   # największy przyrost kontekstu w sesji, która głównie czyta pliki.
   test "assistant bez tekstu, ale z usage, niesie zapełnienie kontekstu" do
