@@ -21,6 +21,11 @@ class StreamJsonParser
         Event.new(type: :assistant_text, text: text.presence, context_tokens: context, at: parse_time(data["timestamp"]))
       end
     when "result"
+      # Wznowiona sesja z zadaniem w tle (np. mutacje puszczone w poprzedniej turze)
+      # najpierw domyka powiadomienie o nim pustym `result`. To nie koniec tury, o którą
+      # prosiliśmy — potraktowany jak koniec, kazał runnerowi ubić sesję po RESULT_EXIT_GRACE.
+      return if data.dig("origin", "kind") == "task-notification"
+
       usage = data["usage"]
       Event.new(type: :result, session_id: data["session_id"], text: data["result"],
                 cost_usd: data["total_cost_usd"], duration_ms: data["duration_ms"],

@@ -536,6 +536,15 @@ class PromptBuilderTest < ActiveSupport::TestCase
     assert_includes prompt, "cudze review"
   end
 
+  # Tura zakończona z zadaniem w tle to wynik, którego dashboard nigdy nie odbierze:
+  # runner ubija sesję chwilę po `result`.
+  test "followup zakazuje kończyć turę, gdy działają zadania w tle" do
+    review = reviews(:pr_review)
+    review.update!(status: "reviewed", worktree_path: Dir.tmpdir)
+    prompt = PromptBuilder.followup(review, "sprawdź", resumed: true)
+    assert_includes prompt, "Nie kończ odpowiedzi, dopóki działa cokolwiek w tle"
+  end
+
   test "dyskusja z PR-a niesie cudze review z werdyktem" do
     review = reviews(:pr_review)
     review.update!(status: "reviewed", worktree_path: Dir.tmpdir)
