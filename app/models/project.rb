@@ -165,10 +165,16 @@ class Project < ApplicationRecord
   # Adres środowiska dev, które skrypt worktree stawia dla brancha (np.
   # https://%{branch}.dev.example.test/). Składany, a nie trzymany per review:
   # wzorzec jest cechą projektu, a branch i tak siedzi już w bazie.
-  def worktree_url(branch)
+  def worktree_url(branch, worktree_path: nil)
     return if worktree_url_template.blank? || branch.blank?
 
-    format_branch(worktree_url_template, branch)
+    format_branch(worktree_url_template, branch, worktree: worktree_name(worktree_path) || branch)
+  end
+
+  def worktree_name(worktree_path)
+    return if worktree_path.blank?
+
+    File.basename(worktree_path).delete_prefix("#{File.basename(repo_path.to_s)}-")
   end
 
   # Host API trackera wycinany z prefiksu zadań (np. https://tracker.example.com/organize/tasks/
@@ -218,8 +224,8 @@ class Project < ApplicationRecord
   # (literówka w %{branch}, goły procent); walidacja robi z tego błąd formularza,
   # a widok — brak linku. Walidacja nie chroni wierszy zapisanych `update_column`
   # ani wprost SQL-em, więc 500 na widoku review byłoby realne.
-  def format_branch(pattern, branch)
-    format(pattern, branch: branch)
+  def format_branch(pattern, branch, worktree: branch)
+    format(pattern, branch: branch, worktree: worktree)
   rescue ArgumentError, KeyError, TypeError
     nil
   end

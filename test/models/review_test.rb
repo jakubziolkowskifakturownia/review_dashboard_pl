@@ -146,6 +146,18 @@ class ReviewTest < ActiveSupport::TestCase
     assert_nil review.worktree_url
   end
 
+  test "worktree_url bierze krótką nazwę z katalogu worktree, gdy branch jest za długi na domenę" do
+    review = reviews(:pr_review)
+    review.project.update!(worktree_url_template: "https://%{worktree}.dev.example.test/")
+    worktree_path = File.join(Dir.tmpdir, "#{File.basename(review.project.repo_path)}-sl-krotka-#{review.id}")
+    FileUtils.mkdir_p(worktree_path)
+    review.update!(branch: "sl-123-bardzo-dluga-nazwa-brancha", worktree_path: worktree_path)
+
+    assert_equal "https://sl-krotka-#{review.id}.dev.example.test/", review.worktree_url
+  ensure
+    FileUtils.rm_rf(worktree_path) if worktree_path
+  end
+
   test "worktree_url jest nil, gdy projekt nie zna adresu środowiska" do
     review = reviews(:pr_review)
     review.update!(branch: "sl-123-vat", worktree_path: Dir.tmpdir)
