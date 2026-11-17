@@ -759,7 +759,7 @@ class Review < ApplicationRecord
   def worktree_url
     return unless worktree_exists?
 
-    project.worktree_url(branch)
+    project.worktree_url(branch, worktree_path: own_worktree_path)
   end
 
   # Wynik health-checku środowiska (CheckWorktreeHealthJob). nil w `error` = wstaje.

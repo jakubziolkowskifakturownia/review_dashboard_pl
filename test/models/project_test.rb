@@ -65,6 +65,29 @@ class ProjectTest < ActiveSupport::TestCase
     assert_equal "https://sl-123-vat.dev.example.test/", project.worktree_url("sl-123-vat")
   end
 
+  test "worktree_url podmienia %{worktree} na nazwę katalogu worktree bez prefiksu repo" do
+    project = projects(:webapp)
+    project.worktree_url_template = "https://%{worktree}.dev.example.test/"
+
+    assert_equal "https://sl-123-bardzo-dlu-a3eb58.dev.example.test/",
+                 project.worktree_url("sl-123-bardzo-dluga-nazwa-brancha",
+                                      worktree_path: "/Users/dev/projects/webapp-sl-123-bardzo-dlu-a3eb58")
+  end
+
+  test "worktree_url bez ścieżki worktree podstawia branch pod %{worktree}" do
+    project = projects(:webapp)
+    project.worktree_url_template = "https://%{worktree}.dev.example.test/"
+
+    assert_equal "https://sl-123-vat.dev.example.test/", project.worktree_url("sl-123-vat")
+  end
+
+  test "przyjmuje %{worktree} we wzorcu adresu środowiska" do
+    project = projects(:webapp)
+    project.worktree_url_template = "https://%{worktree}.dev.example.test/"
+
+    assert project.valid?, project.errors.full_messages.to_sentence
+  end
+
   test "worktree_url jest nil bez wzorca albo bez brancha" do
     project = projects(:webapp)
 
