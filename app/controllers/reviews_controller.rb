@@ -36,6 +36,8 @@ class ReviewsController < ApplicationController
     # Liczniki nad tabelą liczą CAŁY projekt, nie przefiltrowaną listę: mają odpowiadać
     # „ile tu jest roboty", a nie „ile widzisz po filtrze". Jedno GROUP BY.
     @status_counts = @project.reviews.group(:status).count
+    # Listy zadań dla chipów w wierszach — jedno zapytanie, nie jedno na wiersz.
+    @tracker_lists = TrackerTask.lists_by_number(@project)
     enqueue_github_checks(@project.reviews.due_for_github_check)
     remember_list_view
   end

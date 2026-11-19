@@ -49,6 +49,16 @@ class Dashboard
 
   def inbox_checked_at = main_project&.inbox_checked_at
 
+  # Listy zadań z trackera dla kafla (InboxItem albo Review) — jedna mapa na stronę.
+  def tracker_lists_for(record)
+    number = record.is_a?(InboxItem) ? record.task_number : record.task_scoped_id
+    number ? tracker_lists_by_number.fetch(number, []) : []
+  end
+
+  def tracker_lists_by_number
+    @tracker_lists_by_number ||= TrackerTask.lists_by_number(main_project)
+  end
+
   # Jeden PR = jedna karta. Review, którego PR wisi już w kolejce z GitHuba, nie wraca
   # niżej w drugiej sekcji: to ta sama robota opisana dwa razy, tylko innym zegarem
   # (sygnał z GitHuba vs ostatni ruch w dashboardzie). Kafel kolejki dowozi za to stan
