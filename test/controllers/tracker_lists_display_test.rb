@@ -78,4 +78,40 @@ class TrackerListsDisplayTest < ActionDispatch::IntegrationTest
       post refresh_tracker_lists_project_path(@project)
     end
   end
+
+  test "indeks review: wybrana lista na górze, potem reszta w wybranym sortowaniu" do
+    TrackerTask.create!(project: @project, number: "222", lists: [ { "id" => "102", "name" => "Backlog B", "url" => "x" } ])
+    old_on_list = Review.create!(project: @project, pr_url: "https://github.com/acme/webapp/pull/80",
+                                 task_url: "#{PREFIX}111", created_at: 3.days.ago)
+    newest = Review.create!(project: @project, pr_url: "https://github.com/acme/webapp/pull/81", task_url: "#{PREFIX}222")
+
+    get project_reviews_path(@project, tasklist_id: "101")
+
+    rows = css_select("#reviews tbody tr").map { |row| row["id"] }
+    assert_equal "review_row_#{old_on_list.id}", rows.first
+    assert_operator rows.index("review_row_#{newest.id}"), :>, 0
+    assert_select "#reviews_tasklist_filter option[data-id=?]", "101"
+    assert_select "#reviews_tasklist_filter option[data-id=?]", "102"
+  end
+
+  test "indeks review: opcje tylko z review tego projektu" do
+    other = projects(:dashboard)
+    other.update!(task_url_prefix: PREFIX, intum_api_token: "tajny")
+    TrackerTask.create!(project: other, number: "111", lists: [ { "id" => "999", "name" => "Cudza", "url" => "x" } ])
+    Review.create!(project: other, pr_url: "https://github.com/example/dashboard/pull/1", task_url: "#{PREFIX}111")
+    Review.create!(project: @project, pr_url: "https://github.com/acme/webapp/pull/82", task_url: "#{PREFIX}111")
+
+    get project_reviews_path(@project)
+
+    assert_select "#reviews_tasklist_filter option[data-id=?]", "101"
+    assert_select "#reviews_tasklist_filter option[data-id=?]", "999", count: 0
+  end
+
+  test "indeks review: wybrana lista zostaje w filtrze statusu" do
+    Review.create!(project: @project, pr_url: "https://github.com/acme/webapp/pull/83", task_url: "#{PREFIX}111")
+
+    get project_reviews_path(@project, tasklist_id: "101")
+
+    assert_select "form.filter input[type=hidden][name=tasklist_id][value=?]", "101"
+  end
 end

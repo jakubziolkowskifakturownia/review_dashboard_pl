@@ -5,7 +5,7 @@ class ReviewsController < ApplicationController
   # decyzja zapadła — alfabet approve/comment/reject nic nie mówi.
   SORTS = %w[created_at updated_at pr_activity_at status decided_at].freeze
   # Parametry widoku listy — filtr je przenosi, „← wróć do listy" je pamięta.
-  LIST_PARAMS = %i[status sort direction].freeze
+  LIST_PARAMS = %i[status sort direction tasklist_id].freeze
   # Status, w który wraca review, gdy po przełączeniu konta ponawiamy krok,
   # który padł. Klucz to `kind` ostatniego runa; brak runa = ponawiamy describe.
   REQUEUE_STATUSES = { "review" => "reviewing", "followup" => "reviewing", "describe" => "describing" }.freeze
@@ -23,6 +23,14 @@ class ReviewsController < ApplicationController
     # Powtórzenie tego wyliczenia w helperze rozjeżdżałoby się przy sort=bzdura.
     @sort = SORTS.include?(params[:sort]) ? params[:sort] : "created_at"
     @direction = params[:direction] == "asc" ? :asc : :desc
+    # Listy zadań: przed sortowaniem, bo wybrana lista idzie na górę, a reszta
+    # zostaje pod nią w wybranym sortowaniu (nie znika — to dalej moje review).
+    @tracker_lists = TrackerTask.lists_by_number(@project)
+    @tasklist_id = params[:tasklist_id].presence
+    on_list = @tasklist_id ? review_ids_on_list(@tasklist_id) : []
+    if on_list.any?
+      @reviews = @reviews.order(Arel.sql(Review.sanitize_sql_array([ "CASE WHEN reviews.id IN (?) THEN 0 ELSE 1 END", on_list ])))
+    end
     @reviews = @reviews.order(@sort => @direction)
     # Jednym zapytaniem, nie raz na wiersz: „reviewing" bez pracującej sesji znaczy,
     # że job czeka na wolny wątek workera — i to musi być widać już na liście.
@@ -36,8 +44,7 @@ class ReviewsController < ApplicationController
     # Liczniki nad tabelą liczą CAŁY projekt, nie przefiltrowaną listę: mają odpowiadać
     # „ile tu jest roboty", a nie „ile widzisz po filtrze". Jedno GROUP BY.
     @status_counts = @project.reviews.group(:status).count
-    # Listy zadań dla chipów w wierszach — jedno zapytanie, nie jedno na wiersz.
-    @tracker_lists = TrackerTask.lists_by_number(@project)
+    @tasklist_options = tasklist_options
     enqueue_github_checks(@project.reviews.due_for_github_check)
     remember_list_view
   end
@@ -352,6 +359,30 @@ class ReviewsController < ApplicationController
   # „← wróć do listy" ma wracać na listę, którą user oglądał (filtr, sortowanie), a nie
   # na goły widok. W sesji, nie w adresie review: parametry listy doklejone do
   # /reviews/:id udawałyby filtr strony review. Osobno per projekt.
+  # Review projektu, których zadanie leży na danej liście (po numerze zadania z cache).
+  def review_ids_on_list(tasklist_id)
+    numbers = @tracker_lists.select { |_number, lists| lists.any? { |list| list["id"].to_s == tasklist_id } }.keys
+    return [] if numbers.empty?
+
+    @project.reviews.where.not(task_url: [ nil, "" ]).select(:id, :task_url, :project_id)
+            .select { |review| numbers.include?(review.task_scoped_id) }.map(&:id)
+  end
+
+  # Opcje pola „Lista zadań" — listy z zadań review TEGO projektu, z liczbą review.
+  def tasklist_options
+    return [] unless @project.tracker_enabled?
+
+    counts = Hash.new(0)
+    names = {}
+    @project.reviews.where.not(task_url: [ nil, "" ]).select(:id, :task_url, :project_id).each do |review|
+      @tracker_lists.fetch(review.task_scoped_id, []).each do |list|
+        counts[list["id"].to_s] += 1
+        names[list["id"].to_s] = list["name"]
+      end
+    end
+    names.map { |id, name| { "id" => id, "name" => name, "count" => counts[id] } }.sort_by { |option| option["name"].downcase }
+  end
+
   def remember_list_view
     session[:review_lists] = (session[:review_lists] || {})
                              .merge(@project.id.to_s => params.permit(*LIST_PARAMS).to_h.compact_blank)

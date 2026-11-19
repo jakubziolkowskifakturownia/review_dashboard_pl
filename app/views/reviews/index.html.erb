@@ -35,6 +35,12 @@
   <%# Jawny adres listy: formularz bez action wysyła się pod adres dokumentu, a ten
       po nawigacji w ramce bywa adresem review (/reviews/88?status=… pokazywało review).
       requestSubmit, nie submit(): submit() omija Turbo i przeładowuje całą stronę. %>
+  <% if @tasklist_options.any? %>
+    <%= render "shared/tasklist_picker", id: "reviews_tasklist_filter", options: @tasklist_options,
+               selected_id: @tasklist_id, url: project_reviews_path(@project), method: :get,
+               hidden_params: params.permit(*ReviewsController::LIST_PARAMS).except(:tasklist_id).to_h.compact_blank,
+               refresh_url: refresh_tracker_lists_project_path(@project) %>
+  <% end %>
   <%= form_with url: project_reviews_path(@project), method: :get, class: "filter" do %>
     <% params.permit(*ReviewsController::LIST_PARAMS).except(:status).to_h.compact_blank.each do |name, value| %>
       <%= hidden_field_tag name, value, id: nil %>
@@ -68,7 +74,7 @@
   <tbody>
     <%= render partial: "review_row", collection: @reviews, as: :review,
                locals: { running_ids: @running_review_ids, verifying_ids: @verifying_review_ids,
-                         tracker_lists: @tracker_lists } %>
+                         tracker_lists: @tracker_lists, selected_tasklist_id: @tasklist_id } %>
   </tbody>
 </table>
 <%# Pusta tabela bez słowa wygląda jak zepsuta strona, a najczęstszą przyczyną jest
