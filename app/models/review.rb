@@ -234,6 +234,11 @@ class Review < ApplicationRecord
   # w łańcuchu tylko raz — trzy osobne linijki cicho gubiłyby dwie z nich.
   after_commit :broadcast_dashboard!, if: :dashboard_queues_changed?
 
+  # Link do zadania przychodzi różnymi drogami (formularz, opis PR-a, potwierdzenie
+  # w panelu, sesja opisu zadania) — callback łapie wszystkie, żeby lista zadań
+  # pojawiła się przy review bez czekania na poranne odświeżenie.
+  after_commit :refresh_tracker_lists, if: -> { saved_change_to_task_url? && task_url.present? }
+
   def artifacts_dir
     Rails.root.join("storage", "reviews", id.to_s)
   end
@@ -802,6 +807,10 @@ class Review < ApplicationRecord
   end
 
   private
+
+  def refresh_tracker_lists
+    RefreshTrackerTasksJob.perform_later(project) if project.tracker_enabled?
+  end
 
   def side_run_error(kind)
     claude_runs.where(kind: kind).order(:id).last&.error_message

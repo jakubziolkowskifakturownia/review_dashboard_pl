@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_09_130000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_19_065423) do
   create_table "claude_runs", force: :cascade do |t|
     t.integer "cache_creation_tokens"
     t.integer "cache_read_tokens"
@@ -188,10 +188,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_09_130000) do
     t.index ["project_id"], name: "index_reviews_on_project_id"
   end
 
+  create_table "tracker_tasks", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.datetime "fetched_at"
+    t.json "lists", default: [], null: false
+    t.string "number", null: false
+    t.integer "project_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["project_id", "number"], name: "index_tracker_tasks_on_project_id_and_number", unique: true
+    t.index ["project_id"], name: "index_tracker_tasks_on_project_id"
+  end
+
   add_foreign_key "claude_runs", "reviews"
   add_foreign_key "directory_entries", "projects"
   add_foreign_key "findings", "reviews"
   add_foreign_key "inbox_items", "projects"
   add_foreign_key "playwright_runs", "reviews"
   add_foreign_key "reviews", "projects"
+  add_foreign_key "tracker_tasks", "projects"
 end

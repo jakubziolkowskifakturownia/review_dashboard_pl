@@ -12,5 +12,7 @@ class RefreshInboxJob < ApplicationJob
 
   def perform(project, inbox: GithubInbox.new)
     inbox.refresh(project)
+    # Nowe PR-y w kolejce = nowe zadania, których list jeszcze nie znamy.
+    RefreshTrackerTasksJob.perform_later(project) if project.tracker_enabled?
   end
 end

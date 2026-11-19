@@ -18,4 +18,9 @@ class InboxItem < ApplicationRecord
   scope :by_urgency, -> { order(Arel.sql("CASE reason WHEN 'requested' THEN 0 ELSE 1 END"), :signal_at) }
 
   def label = REASON_LABELS.fetch(reason, reason)
+
+  # Numer zadania z linku w opisie PR-a — klucz do list zadań w TrackerTask.
+  def task_number
+    TaskLink.number(task_url, prefix: project.task_url_prefix) if task_url.present?
+  end
 end

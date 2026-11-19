@@ -15,6 +15,7 @@ class Project < ApplicationRecord
   has_many :reviews, dependent: :destroy
   has_many :inbox_items, dependent: :destroy
   has_many :directory_entries, dependent: :destroy
+  has_many :tracker_tasks, dependent: :delete_all
 
   # Token API trackera (Intum/Sugester) — w bazie zaszyfrowany; formularz pokazuje
   # tylko placeholder „ustawiony", nigdy wartość.
@@ -205,6 +206,12 @@ class Project < ApplicationRecord
   def intum_client
     IntumClient.new(base_url: intum_base_url, token: intum_api_token)
   end
+
+  # Neutralne wejście dla list zadań: dziś tracker to Intum, inny tracker podepnie
+  # tu własnego klienta z tą samą metodą `task_lists(numer)`.
+  def tracker_enabled? = intum_enabled?
+
+  def tracker_client = intum_client
 
   private
 

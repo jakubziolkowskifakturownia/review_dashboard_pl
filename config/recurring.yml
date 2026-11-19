@@ -22,6 +22,12 @@ default: &default
     class: RefreshAllInboxesJob
     schedule: every 60 minutes
 
+  # Listy zadań z trackera: przez noc zadania przechodzą do nowego cyklu i powstają
+  # nowe listy — rano dashboard ma pokazywać aktualne (RefreshAllTrackerTasksJob).
+  refresh_tracker_lists:
+    class: RefreshAllTrackerTasksJob
+    schedule: at 6am every day
+
   # Solid Queue sprząta claimy znikniętego workera tylko przy starcie supervisora —
   # bez tego review potrafi wisieć do restartu apki (patrz OrphanedJobsSweep).
   sweep_orphaned_jobs:
