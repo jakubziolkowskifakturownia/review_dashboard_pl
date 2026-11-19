@@ -40,17 +40,18 @@
     <% end %>
     <% if dashboard.tasklist_options.any? %>
       <%= render "shared/tasklist_picker", id: "inbox_tasklist_filter", options: dashboard.tasklist_options,
-                 selected_id: dashboard.selected_tasklist_id, url: select_inbox_tasklist_projects_path, method: :post,
+                 selected_ids: dashboard.selected_tasklist_ids, url: select_inbox_tasklist_projects_path, method: :post,
                  refresh_url: refresh_tracker_lists_project_path(dashboard.main_project) %>
     <% end %>
     <% if dashboard.inbox_items.any? %>
       <%= render partial: "projects/inbox_item", collection: dashboard.inbox_items_on_list, as: :item,
                  locals: { dashboard: dashboard } %>
       <% if dashboard.inbox_items_off_list.any? %>
-        <%# PR-y spoza wybranej listy nie znikają — dalej czekają na mnie w GitHubie. %>
-        <p class="qdivider muted">spoza wybranej listy (<%= dashboard.inbox_items_off_list.size %>)</p>
-        <%= render partial: "projects/inbox_item", collection: dashboard.inbox_items_off_list, as: :item,
-                   locals: { dashboard: dashboard } %>
+        <%# Spoza wybranej listy chowamy: przemieszane z resztą łatwo wziąć nie ten PR.
+            Licznik zostaje, żeby było widać, że w GitHubie czeka więcej („✕ bez listy” pokazuje). %>
+        <p id="inbox_hidden_off_list" class="qdivider muted">
+          ukryto <%= dashboard.inbox_items_off_list.size %> spoza listy — „✕ bez listy” pokaże wszystkie
+        </p>
       <% end %>
     <% else %>
       <p class="empty">

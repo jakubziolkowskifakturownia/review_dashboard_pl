@@ -1,21 +1,23 @@
 import { Controller } from "@hotwired/stimulus"
 
-// Pole listy zadań: użytkownik wybiera nazwę z datalisty, formularz wysyła id.
-// Nazwa spoza podpowiedzi (literówka) nie zmienia wyboru — lepiej nic niż zła lista.
+// Pole „dodaj listę zadań": użytkownik wybiera nazwę z datalisty, formularz dokłada
+// jej id do już wybranych. Nazwa spoza podpowiedzi (literówka) nic nie wysyła.
 export default class extends Controller {
   static targets = ["input", "hidden"]
 
   pick() {
     const id = this.idFor(this.inputTarget.value)
-    if (id === null && this.inputTarget.value.trim() !== "") return
+    if (!id) return
 
-    this.hiddenTarget.value = id ?? ""
+    this.hiddenTarget.value = id
     this.element.requestSubmit()
   }
 
+  // Enter w polu: ten sam warunek co wybór z listy — bez trafionej nazwy nic nie idzie.
   resolve(event) {
     const id = this.idFor(this.inputTarget.value)
-    if (id === null && this.inputTarget.value.trim() !== "") event.preventDefault()
+    if (!id) { event.preventDefault(); return }
+    this.hiddenTarget.value = id
   }
 
   idFor(name) {

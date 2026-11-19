@@ -51,12 +51,13 @@ class ProjectsController < ApplicationController
     end
   end
 
-  # Pusty tasklist_id zdejmuje wybór. Odpowiedź jak przy filtrze labelek: przebudowa kolejek.
+  # Formularz wysyła pełny nowy zestaw list (dodanie/zdjęcie jednej robi widok);
+  # sam pusty element zdejmuje wybór. Odpowiedź jak przy filtrze labelek: przebudowa kolejek.
   def select_inbox_tasklist
     project = Project.main
     return head :not_found unless project
 
-    project.update!(inbox_tasklist_id: params[:tasklist_id].to_s.strip.presence)
+    project.update!(inbox_tasklist_ids: Array(params[:tasklist_ids]).map { |id| id.to_s.strip }.compact_blank.uniq)
     BroadcastDashboardJob.perform_later
     respond_to do |format|
       format.turbo_stream { render :cycle_inbox_label }

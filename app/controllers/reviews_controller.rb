@@ -5,7 +5,7 @@ class ReviewsController < ApplicationController
   # decyzja zapadła — alfabet approve/comment/reject nic nie mówi.
   SORTS = %w[created_at updated_at pr_activity_at status decided_at].freeze
   # Parametry widoku listy — filtr je przenosi, „← wróć do listy" je pamięta.
-  LIST_PARAMS = %i[status sort direction tasklist_id].freeze
+  LIST_PARAMS = [ :status, :sort, :direction, { tasklist_ids: [] } ].freeze
   # Status, w który wraca review, gdy po przełączeniu konta ponawiamy krok,
   # który padł. Klucz to `kind` ostatniego runa; brak runa = ponawiamy describe.
   REQUEUE_STATUSES = { "review" => "reviewing", "followup" => "reviewing", "describe" => "describing" }.freeze
@@ -23,14 +23,11 @@ class ReviewsController < ApplicationController
     # Powtórzenie tego wyliczenia w helperze rozjeżdżałoby się przy sort=bzdura.
     @sort = SORTS.include?(params[:sort]) ? params[:sort] : "created_at"
     @direction = params[:direction] == "asc" ? :asc : :desc
-    # Listy zadań: przed sortowaniem, bo wybrana lista idzie na górę, a reszta
-    # zostaje pod nią w wybranym sortowaniu (nie znika — to dalej moje review).
+    # Wybrane listy zadań to filtr, nie sortowanie: review spoza nich znikają,
+    # bo przemieszane z resztą łatwo wziąć nie to, co trzeba. Kilka list = suma.
     @tracker_lists = TrackerTask.lists_by_number(@project)
-    @tasklist_id = params[:tasklist_id].presence
-    on_list = @tasklist_id ? review_ids_on_list(@tasklist_id) : []
-    if on_list.any?
-      @reviews = @reviews.order(Arel.sql(Review.sanitize_sql_array([ "CASE WHEN reviews.id IN (?) THEN 0 ELSE 1 END", on_list ])))
-    end
+    @tasklist_ids = Array(params[:tasklist_ids]).map(&:to_s).compact_blank.uniq
+    @reviews = @reviews.where(id: review_ids_on_lists(@tasklist_ids)) if @tasklist_ids.any?
     @reviews = @reviews.order(@sort => @direction)
     # Jednym zapytaniem, nie raz na wiersz: „reviewing" bez pracującej sesji znaczy,
     # że job czeka na wolny wątek workera — i to musi być widać już na liście.
@@ -359,9 +356,9 @@ class ReviewsController < ApplicationController
   # „← wróć do listy" ma wracać na listę, którą user oglądał (filtr, sortowanie), a nie
   # na goły widok. W sesji, nie w adresie review: parametry listy doklejone do
   # /reviews/:id udawałyby filtr strony review. Osobno per projekt.
-  # Review projektu, których zadanie leży na danej liście (po numerze zadania z cache).
-  def review_ids_on_list(tasklist_id)
-    numbers = @tracker_lists.select { |_number, lists| lists.any? { |list| list["id"].to_s == tasklist_id } }.keys
+  # Review projektu, których zadanie leży na którejś z list (po numerze zadania z cache).
+  def review_ids_on_lists(tasklist_ids)
+    numbers = @tracker_lists.select { |_number, lists| lists.any? { |list| tasklist_ids.include?(list["id"].to_s) } }.keys
     return [] if numbers.empty?
 
     @project.reviews.where.not(task_url: [ nil, "" ]).select(:id, :task_url, :project_id)
@@ -380,6 +377,8 @@ class ReviewsController < ApplicationController
         names[list["id"].to_s] = list["name"]
       end
     end
+    # Wybrana lista bez review (np. ze starego linku) dalej musi dać się zdjąć.
+    @tasklist_ids.each { |id| names[id] ||= "lista ##{id}" }
     names.map { |id, name| { "id" => id, "name" => name, "count" => counts[id] } }.sort_by { |option| option["name"].downcase }
   end
 

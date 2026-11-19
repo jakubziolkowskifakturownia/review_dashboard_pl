@@ -10,7 +10,7 @@
     <div class="muted"><%= [ review.pr_number ? "PR ##{review.pr_number}" : nil,
                              review.self_review? ? "selfreview" : nil, review.branch.presence,
                              review.model.presence ].compact.join(" · ") %></div>
-    <%= task_lists_tag(review_task_lists(review, local_assigns[:tracker_lists]), selected_id: local_assigns[:selected_tasklist_id]) %>
+    <%= task_lists_tag(review_task_lists(review, local_assigns[:tracker_lists]), selected_ids: local_assigns.fetch(:selected_tasklist_ids, [])) %>
   </td>
   <td>
     <span class="status-badge status-<%= review.status %>"><%= review_status_label(review) %></span>

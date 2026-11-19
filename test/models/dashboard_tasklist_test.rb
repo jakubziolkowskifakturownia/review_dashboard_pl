@@ -33,16 +33,25 @@ class DashboardTasklistTest < ActiveSupport::TestCase
     assert_empty dashboard.inbox_items_off_list
   end
 
-  test "wybrana lista: jej PR-y na górze, reszta (także bez zadania) pod kreską" do
-    @project.update!(inbox_tasklist_id: "102")
+  test "wybrana lista: jej PR-y widać, reszta (także bez zadania) ukryta" do
+    @project.update!(inbox_tasklist_ids: [ "102" ])
 
     assert_equal [ 9001 ], dashboard.inbox_items_on_list.map(&:pr_number)
     assert_equal [ 9002, 9003 ].sort, dashboard.inbox_items_off_list.map(&:pr_number).sort
   end
 
+  test "kilka wybranych list: PR z którejkolwiek z nich jest widoczny" do
+    TrackerTask.create!(project: @project, number: "333", lists: [ { "id" => "104", "name" => "Incydenty", "url" => "x" } ])
+    @third.update!(task_url: "#{PREFIX}333")
+    @project.update!(inbox_tasklist_ids: [ "102", "104" ])
+
+    assert_equal [ 9001, 9003 ].sort, dashboard.inbox_items_on_list.map(&:pr_number).sort
+    assert_equal [ 9002 ], dashboard.inbox_items_off_list.map(&:pr_number)
+  end
+
   test "zapisana lista spoza kolejki dalej jest w opcjach" do
     TrackerTask.create!(project: @project, number: "999", lists: [ { "id" => "103", "name" => "Stary cykl", "url" => "x" } ])
-    @project.update!(inbox_tasklist_id: "103")
+    @project.update!(inbox_tasklist_ids: [ "103" ])
 
     assert_includes dashboard.tasklist_options, { "id" => "103", "name" => "Stary cykl", "count" => 0 }
   end
@@ -54,10 +63,10 @@ class DashboardTasklistTest < ActiveSupport::TestCase
   end
 
   test "tracker wyłączony po wyborze listy — kolejka nie jest dzielona i nie ma chipów" do
-    @project.update!(inbox_tasklist_id: "102")
+    @project.update!(inbox_tasklist_ids: [ "102" ])
     @project.update_columns(task_url_prefix: nil)
 
-    assert_nil dashboard.selected_tasklist_id
+    assert_empty dashboard.selected_tasklist_ids
     assert_empty dashboard.inbox_items_off_list
     assert_empty dashboard.tracker_lists_for(inbox_items(:requested).reload)
   end

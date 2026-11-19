@@ -53,16 +53,24 @@ class TrackerListsDisplayTest < ActionDispatch::IntegrationTest
     assert_select "#inbox_tasklist_filter option[data-id=?]", "101"
 
     assert_enqueued_with(job: BroadcastDashboardJob) do
-      post select_inbox_tasklist_projects_path, params: { tasklist_id: "101" }
+      post select_inbox_tasklist_projects_path, params: { tasklist_ids: [ "101" ] }
     end
-    assert_equal "101", @project.reload.inbox_tasklist_id
+    assert_equal [ "101" ], @project.reload.inbox_tasklist_ids
 
     get root_path
     assert_select "#inbox_pr_9001 .tasklist-chip-selected", text: "Cykl A"
-    assert_select ".qdivider", text: /spoza wybranej listy/
+    assert_select "#inbox_pr_9002", 0
+    assert_select "#inbox_hidden_off_list", text: /ukryto \d+ spoza listy/
 
-    post select_inbox_tasklist_projects_path, params: { tasklist_id: "" }
-    assert_nil @project.reload.inbox_tasklist_id
+    # Drugą listę dokłada się do pierwszej, ✕ przy chipie zdejmuje jedną, „bez listy" wszystkie.
+    post select_inbox_tasklist_projects_path, params: { tasklist_ids: [ "101", "102", "101", "" ] }
+    assert_equal [ "101", "102" ], @project.reload.inbox_tasklist_ids
+    get root_path
+    assert_select "#inbox_tasklist_filter .tasklist-selected", 2
+    assert_select "#inbox_tasklist_filter option[data-id=?]", "101", count: 0
+
+    post select_inbox_tasklist_projects_path, params: { tasklist_ids: [ "" ] }
+    assert_equal [], @project.reload.inbox_tasklist_ids
   end
 
   test "projekt bez trackera — brak selektu" do
@@ -79,19 +87,35 @@ class TrackerListsDisplayTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "indeks review: wybrana lista na górze, potem reszta w wybranym sortowaniu" do
+  test "indeks review: wybrana lista chowa review spoza niej" do
     TrackerTask.create!(project: @project, number: "222", lists: [ { "id" => "102", "name" => "Backlog B", "url" => "x" } ])
     old_on_list = Review.create!(project: @project, pr_url: "https://github.com/acme/webapp/pull/80",
                                  task_url: "#{PREFIX}111", created_at: 3.days.ago)
     newest = Review.create!(project: @project, pr_url: "https://github.com/acme/webapp/pull/81", task_url: "#{PREFIX}222")
 
-    get project_reviews_path(@project, tasklist_id: "101")
+    get project_reviews_path(@project, tasklist_ids: [ "101" ])
 
     rows = css_select("#reviews tbody tr").map { |row| row["id"] }
-    assert_equal "review_row_#{old_on_list.id}", rows.first
-    assert_operator rows.index("review_row_#{newest.id}"), :>, 0
-    assert_select "#reviews_tasklist_filter option[data-id=?]", "101"
+    assert_includes rows, "review_row_#{old_on_list.id}"
+    assert_not_includes rows, "review_row_#{newest.id}"
+    assert_select "#reviews_tasklist_filter .tasklist-selected", text: /Cykl A/
     assert_select "#reviews_tasklist_filter option[data-id=?]", "102"
+  end
+
+  test "indeks review: kilka list naraz — review z którejkolwiek" do
+    TrackerTask.create!(project: @project, number: "222", lists: [ { "id" => "102", "name" => "Backlog B", "url" => "x" } ])
+    TrackerTask.create!(project: @project, number: "333", lists: [ { "id" => "103", "name" => "Inna", "url" => "x" } ])
+    first = Review.create!(project: @project, pr_url: "https://github.com/acme/webapp/pull/84", task_url: "#{PREFIX}111")
+    second = Review.create!(project: @project, pr_url: "https://github.com/acme/webapp/pull/85", task_url: "#{PREFIX}222")
+    other = Review.create!(project: @project, pr_url: "https://github.com/acme/webapp/pull/86", task_url: "#{PREFIX}333")
+
+    get project_reviews_path(@project, tasklist_ids: [ "101", "102" ])
+
+    rows = css_select("#reviews tbody tr").map { |row| row["id"] }
+    assert_includes rows, "review_row_#{first.id}"
+    assert_includes rows, "review_row_#{second.id}"
+    assert_not_includes rows, "review_row_#{other.id}"
+    assert_select "#reviews_tasklist_filter .tasklist-selected", 2
   end
 
   test "indeks review: opcje tylko z review tego projektu" do
@@ -110,8 +134,8 @@ class TrackerListsDisplayTest < ActionDispatch::IntegrationTest
   test "indeks review: wybrana lista zostaje w filtrze statusu" do
     Review.create!(project: @project, pr_url: "https://github.com/acme/webapp/pull/83", task_url: "#{PREFIX}111")
 
-    get project_reviews_path(@project, tasklist_id: "101")
+    get project_reviews_path(@project, tasklist_ids: [ "101" ])
 
-    assert_select "form.filter input[type=hidden][name=tasklist_id][value=?]", "101"
+    assert_select "form.filter input[type=hidden][name=?][value=?]", "tasklist_ids[]", "101"
   end
 end

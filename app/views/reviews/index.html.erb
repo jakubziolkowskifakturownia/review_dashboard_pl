@@ -37,14 +37,12 @@
       requestSubmit, nie submit(): submit() omija Turbo i przeładowuje całą stronę. %>
   <% if @tasklist_options.any? %>
     <%= render "shared/tasklist_picker", id: "reviews_tasklist_filter", options: @tasklist_options,
-               selected_id: @tasklist_id, url: project_reviews_path(@project), method: :get,
-               hidden_params: params.permit(*ReviewsController::LIST_PARAMS).except(:tasklist_id).to_h.compact_blank,
+               selected_ids: @tasklist_ids, url: project_reviews_path(@project), method: :get,
+               hidden_params: params.permit(*ReviewsController::LIST_PARAMS).except(:tasklist_ids).to_h.compact_blank,
                refresh_url: refresh_tracker_lists_project_path(@project) %>
   <% end %>
   <%= form_with url: project_reviews_path(@project), method: :get, class: "filter" do %>
-    <% params.permit(*ReviewsController::LIST_PARAMS).except(:status).to_h.compact_blank.each do |name, value| %>
-      <%= hidden_field_tag name, value, id: nil %>
-    <% end %>
+    <%= hidden_list_params(params.permit(*ReviewsController::LIST_PARAMS).except(:status).to_h.compact_blank) %>
     <select name="status" onchange="this.form.requestSubmit()">
       <option value="">Wszystkie statusy</option>
       <% Review::STATUSES.each do |s| %>
@@ -74,14 +72,17 @@
   <tbody>
     <%= render partial: "review_row", collection: @reviews, as: :review,
                locals: { running_ids: @running_review_ids, verifying_ids: @verifying_review_ids,
-                         tracker_lists: @tracker_lists, selected_tasklist_id: @tasklist_id } %>
+                         tracker_lists: @tracker_lists, selected_tasklist_ids: @tasklist_ids } %>
   </tbody>
 </table>
 <%# Pusta tabela bez słowa wygląda jak zepsuta strona, a najczęstszą przyczyną jest
     filtr statusu, o którym łatwo zapomnieć. %>
 <% if @reviews.empty? %>
   <p class="empty">
-    <% if params[:status].present? %>
+    <% if @tasklist_ids.any? %>
+      Żadne review<%= " o statusie „#{params[:status]}”" if params[:status].present? %> nie jest na wybranych listach zadań.
+      <%= link_to "Pokaż wszystkie", project_reviews_path(@project, params.permit(*ReviewsController::LIST_PARAMS).except(:tasklist_ids).to_h.compact_blank) %>
+    <% elsif params[:status].present? %>
       Żadne review nie ma statusu „<%= params[:status] %>".
       <%= link_to "Pokaż wszystkie", project_reviews_path(@project) %>
     <% else %>

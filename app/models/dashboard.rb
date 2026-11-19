@@ -59,7 +59,7 @@ class Dashboard
 
   # Opcje selektu „Lista zadań": listy z zadań PR-ów widocznych w kolejce projektu
   # głównego, z liczbą PR-ów. Wszystkich list trackera są setki, a większość byłaby
-  # tu pusta. Zapisana lista zostaje w opcjach także z zerem — inaczej nie dałoby
+  # tu pusta. Zapisane listy zostają w opcjach także z zerem — inaczej nie dałoby
   # się zobaczyć, co jest wybrane.
   def tasklist_options
     return [] unless main_project&.tracker_enabled?
@@ -73,8 +73,8 @@ class Dashboard
           names[list["id"].to_s] = list["name"]
         end
       end
-      if (selected = main_project.inbox_tasklist_id).present? && !names.key?(selected)
-        names[selected] = tracker_list_name(selected) || "lista ##{selected}"
+      main_project.inbox_tasklist_ids.each do |selected|
+        names[selected] ||= tracker_list_name(selected) || "lista ##{selected}"
       end
       names.map { |id, name| { "id" => id, "name" => name, "count" => counts[id] } }
            .sort_by { |option| option["name"].downcase }
@@ -82,19 +82,21 @@ class Dashboard
   end
 
   # Wyłączony tracker = brak selektu, więc i brak przycisku „bez listy” — zapamiętany
-  # wybór nie może wtedy dalej dzielić kolejki.
-  def selected_tasklist_id = (main_project.inbox_tasklist_id.presence if main_project&.tracker_enabled?)
+  # wybór nie może wtedy dalej filtrować kolejki.
+  def selected_tasklist_ids
+    main_project&.tracker_enabled? ? main_project.inbox_tasklist_ids : []
+  end
 
-  # Wybrana lista nie chowa reszty, tylko ją spycha: PR spoza cyklu dalej czeka na mnie
-  # w GitHubie. Bez wybranej listy wszystko jest „na liście".
+  # Kilka wybranych list = suma: widać PR z którejkolwiek z nich. Reszta jest ukryta
+  # (widok pokazuje tylko jej liczbę). Bez wybranej listy wszystko jest „na liście".
   def inbox_items_on_list
-    return inbox_items unless selected_tasklist_id
+    return inbox_items if selected_tasklist_ids.empty?
 
     inbox_items.select { |item| on_selected_list?(item) }
   end
 
   def inbox_items_off_list
-    return [] unless selected_tasklist_id
+    return [] if selected_tasklist_ids.empty?
 
     inbox_items.reject { |item| on_selected_list?(item) }
   end
@@ -148,7 +150,7 @@ class Dashboard
   private
 
   def on_selected_list?(item)
-    tracker_lists_for(item).any? { |list| list["id"].to_s == selected_tasklist_id }
+    tracker_lists_for(item).any? { |list| selected_tasklist_ids.include?(list["id"].to_s) }
   end
 
   def tracker_list_name(id)

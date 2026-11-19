@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_19_065952) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_19_085114) do
   create_table "claude_runs", force: :cascade do |t|
     t.integer "cache_creation_tokens"
     t.integer "cache_read_tokens"
@@ -108,7 +108,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_065952) do
     t.json "inbox_hidden_labels", default: [], null: false
     t.boolean "inbox_hide_commented", default: false, null: false
     t.json "inbox_shown_labels", default: [], null: false
-    t.string "inbox_tasklist_id"
+    t.json "inbox_tasklist_ids", default: [], null: false
     t.string "intum_api_token"
     t.datetime "main_at"
     t.string "name"
