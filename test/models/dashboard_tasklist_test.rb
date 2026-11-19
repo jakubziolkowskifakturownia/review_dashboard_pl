@@ -52,4 +52,13 @@ class DashboardTasklistTest < ActiveSupport::TestCase
 
     assert_empty dashboard.tasklist_options
   end
+
+  test "tracker wyłączony po wyborze listy — kolejka nie jest dzielona i nie ma chipów" do
+    @project.update!(inbox_tasklist_id: "102")
+    @project.update_columns(task_url_prefix: nil)
+
+    assert_nil dashboard.selected_tasklist_id
+    assert_empty dashboard.inbox_items_off_list
+    assert_empty dashboard.tracker_lists_for(inbox_items(:requested).reload)
+  end
 end

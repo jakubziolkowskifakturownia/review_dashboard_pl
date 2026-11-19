@@ -51,6 +51,8 @@ class Dashboard
 
   # Listy zadań z trackera dla kafla (InboxItem albo Review) — jedna mapa na stronę.
   def tracker_lists_for(record)
+    return [] unless main_project&.tracker_enabled?
+
     number = record.is_a?(InboxItem) ? record.task_number : record.task_scoped_id
     number ? tracker_lists_by_number.fetch(number, []) : []
   end
@@ -79,7 +81,9 @@ class Dashboard
     end
   end
 
-  def selected_tasklist_id = main_project&.inbox_tasklist_id.presence
+  # Wyłączony tracker = brak selektu, więc i brak przycisku „bez listy” — zapamiętany
+  # wybór nie może wtedy dalej dzielić kolejki.
+  def selected_tasklist_id = (main_project.inbox_tasklist_id.presence if main_project&.tracker_enabled?)
 
   # Wybrana lista nie chowa reszty, tylko ją spycha: PR spoza cyklu dalej czeka na mnie
   # w GitHubie. Bez wybranej listy wszystko jest „na liście".

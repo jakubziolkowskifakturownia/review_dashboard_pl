@@ -49,8 +49,8 @@ class IntumClient
   # Listy zadań, na których leży zadanie (cykl, backlog, incydent…). JSON zadania
   # ich nie zwraca, a filtr `tasks.json?tasklist_ids[]=` działa tylko w drugą stronę
   # (lista → zadania, setki list) — jedynym źródłem jest strona HTML zadania.
-  # Zmiana HTML-a trackera skończy się pustą tablicą, nie wyjątkiem: chipy znikną,
-  # dashboard dalej działa.
+  # Zmieniony HTML trackera kończy się IntumClient::Error (patrz niżej) — job loguje
+  # ostrzeżenie i zostawia poprzednie listy, dashboard działa dalej.
   def task_lists(scoped_id)
     # `/t/<numer>`: pod `/organize/tasks/<numer>` przeglądarkowy Accept dostaje 301 właśnie tutaj.
     response = @transport.get_html("/organize/tasks/t/#{scoped_id}", bearer: @token)
@@ -58,8 +58,15 @@ class IntumClient
       raise Error, "tracker odpowiedział #{response.code} na stronę zadania ##{scoped_id}"
     end
 
+    page = Nokogiri::HTML(response.body)
+    # Bez pola „Listy zadań” to nie jest strona zadania (zmieniony HTML, strona
+    # logowania z kodem 200) — błąd zostawia w cache poprzednie listy, zamiast je wyczyścić.
+    unless page.at_css("label[for='tasklist_ids']")
+      raise Error, "strona zadania ##{scoped_id} nie ma pola list zadań — zmienił się HTML trackera?"
+    end
+
     # Tracker renderuje każdy chip dwa razy (wersja szeroka i wąska) — stąd uniq.
-    Nokogiri::HTML(response.body).css("a[id^='task_tasklist_'][id$='_small']").filter_map do |link|
+    page.css("a[id^='task_tasklist_'][id$='_small']").filter_map do |link|
       id = link["id"][/\Atask_tasklist_(\d+)_small\z/, 1]
       # Nazwa z tekstu chipa: `title` ma doklejony rodzaj listy („Lista …”, „Cykl …”,
       # „Sprint …”), a tekst tylko znacznik ✓ i twardą spację.

@@ -10,7 +10,8 @@ class RefreshTrackerTasksJobTest < ActiveSupport::TestCase
   class FakeTracker
     attr_reader :asked
 
-    def initialize(lists = {}, failing: [], **by_number)
+    def initialize(lists = {}, failing: [], dropping: [], **by_number)
+      @dropping = dropping
       @lists = lists.merge(by_number.transform_keys(&:to_s))
       @failing = failing
       @asked = Queue.new
@@ -19,6 +20,7 @@ class RefreshTrackerTasksJobTest < ActiveSupport::TestCase
     def task_lists(number)
       @asked << number
       raise IntumClient::Error, "tracker odpowiedział 500" if @failing.include?(number)
+      raise EOFError, "end of file reached" if @dropping&.include?(number)
 
       @lists.fetch(number, [])
     end
@@ -114,5 +116,13 @@ class RefreshTrackerTasksJobTest < ActiveSupport::TestCase
     assert_enqueued_with(job: RefreshTrackerTasksJob, args: [ @project ]) do
       review.update!(task_url: "#{PREFIX}333")
     end
+  end
+
+  test "zerwane połączenie przy jednym zadaniu nie gubi pozostałych" do
+    tracker = FakeTracker.new({ "222" => [ BACKLOG ] }, dropping: %w[111])
+
+    RefreshTrackerTasksJob.perform_now(@project, client: tracker)
+
+    assert_equal({ "222" => [ BACKLOG ] }, TrackerTask.lists_by_number(@project))
   end
 end

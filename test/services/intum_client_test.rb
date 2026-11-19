@@ -133,7 +133,8 @@ class IntumClientTest < ActiveSupport::TestCase
 
   test "task_lists zwraca pustą tablicę, gdy strona nie ma list" do
     fake = FakeTransport.new
-    fake.queue(:get_html, "/organize/tasks/t/123", code: 200, body: "<html><body>nic</body></html>")
+    fake.queue(:get_html, "/organize/tasks/t/123", code: 200,
+               body: %(<html><body><label for="tasklist_ids">Listy zadań</label></body></html>))
 
     assert_equal [], client(fake).task_lists("123")
   end
@@ -141,6 +142,14 @@ class IntumClientTest < ActiveSupport::TestCase
   test "task_lists rzuca Error przy 401" do
     fake = FakeTransport.new
     fake.queue(:get_html, "/organize/tasks/t/123", code: 401, body: "login_required")
+
+    assert_raises(IntumClient::Error) { client(fake).task_lists("123") }
+  end
+
+  test "task_lists rzuca Error, gdy strona nie wygląda na stronę zadania" do
+    # Zmieniony HTML albo strona logowania z kodem 200 — lepiej zostawić stare listy niż je wyczyścić.
+    fake = FakeTransport.new
+    fake.queue(:get_html, "/organize/tasks/t/123", code: 200, body: "<html><body>Zaloguj się</body></html>")
 
     assert_raises(IntumClient::Error) { client(fake).task_lists("123") }
   end

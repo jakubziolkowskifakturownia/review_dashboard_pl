@@ -49,7 +49,10 @@ class RefreshTrackerTasksJob < ApplicationJob
 
   def fetch(client, number)
     client.task_lists(number)
-  rescue IntumClient::Error => e
+  # StandardError, nie tylko IntumClient::Error: wyjątek z wątku wraca przez
+  # Thread#value i zabrałby listy wszystkich zadań z partii (np. EOFError, gdy
+  # tracker zerwie połączenie przy ~500 KB stronie).
+  rescue StandardError => e
     Rails.logger.warn("[RefreshTrackerTasksJob] listy zadania ##{number}: #{e.message}")
     nil
   end
