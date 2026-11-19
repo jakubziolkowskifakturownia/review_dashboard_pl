@@ -219,6 +219,10 @@ table#reviews td.activity-cell, table#reviews td.worktree-cell { white-space: no
 .label-chip:hover { border-color: var(--fg); color: var(--fg); }
 .label-chip-shown { background: var(--info-bg); border-color: var(--accent); color: var(--accent); }
 .label-chip-hidden { border-style: dashed; text-decoration: line-through; }
+.tasklist-picker form { display: inline-flex; align-items: center; gap: 6px; margin: 0; }
+.tasklist-picker input[type=search] { font: inherit; font-size: 12px; padding: 2px 8px; border-radius: 6px;
+                                      border: 1px solid var(--line); background: var(--surface); color: var(--fg); }
+.qdivider { margin: 14px 0 6px; padding-top: 8px; border-top: 1px dashed var(--line); font-size: 12px; }
 .task-lists { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
 .tasklist-chip { position: relative; z-index: 1; font-size: 11px; padding: 1px 7px; border-radius: 999px; text-decoration: none;
                  background: var(--surface); border: 1px solid var(--line); color: var(--muted); }

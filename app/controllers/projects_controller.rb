@@ -51,6 +51,27 @@ class ProjectsController < ApplicationController
     end
   end
 
+  # Pusty tasklist_id zdejmuje wybór. Odpowiedź jak przy filtrze labelek: przebudowa kolejek.
+  def select_inbox_tasklist
+    project = Project.main
+    return head :not_found unless project
+
+    project.update!(inbox_tasklist_id: params[:tasklist_id].to_s.strip.presence)
+    BroadcastDashboardJob.perform_later
+    respond_to do |format|
+      format.turbo_stream { render :cycle_inbox_label }
+      format.html { redirect_to projects_path }
+    end
+  end
+
+  # Ręczne „pobierz od nowa": zadanie przepięte do innej listy inaczej czekałoby
+  # do porannego odświeżenia albo do końca TrackerTask::STALE_AFTER.
+  def refresh_tracker_lists
+    project = Project.find(params[:id])
+    RefreshTrackerTasksJob.perform_later(project, force: true)
+    redirect_back fallback_location: projects_path, notice: "Odświeżam listy zadań — chipy dojdą za kilka sekund"
+  end
+
   # Kolejka odświeża się sama co GithubInbox::STALE_AFTER; ten przycisk pomija okno,
   # gdy wiem, że ktoś właśnie poprosił mnie o review i nie chcę czekać.
   def refresh_inbox

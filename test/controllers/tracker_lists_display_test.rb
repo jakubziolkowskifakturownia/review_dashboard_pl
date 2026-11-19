@@ -45,4 +45,37 @@ class TrackerListsDisplayTest < ActionDispatch::IntegrationTest
     get review_path(review)
     assert_select ".tasklist-chip", text: "Cykl A"
   end
+
+  test "selekt list nad kolejką; wybór zapisuje listę i przerysowuje dashboard" do
+    inbox_items(:requested).update!(task_url: "#{PREFIX}111")
+
+    get root_path
+    assert_select "#inbox_tasklist_filter option[data-id=?]", "101"
+
+    assert_enqueued_with(job: BroadcastDashboardJob) do
+      post select_inbox_tasklist_projects_path, params: { tasklist_id: "101" }
+    end
+    assert_equal "101", @project.reload.inbox_tasklist_id
+
+    get root_path
+    assert_select "#inbox_pr_9001 .tasklist-chip-selected", text: "Cykl A"
+    assert_select ".qdivider", text: /spoza wybranej listy/
+
+    post select_inbox_tasklist_projects_path, params: { tasklist_id: "" }
+    assert_nil @project.reload.inbox_tasklist_id
+  end
+
+  test "projekt bez trackera — brak selektu" do
+    @project.update_columns(task_url_prefix: nil)
+
+    get root_path
+
+    assert_select "#inbox_tasklist_filter", 0
+  end
+
+  test "Odśwież listy zleca pobranie wszystkiego od nowa" do
+    assert_enqueued_with(job: RefreshTrackerTasksJob, args: [ @project, { force: true } ]) do
+      post refresh_tracker_lists_project_path(@project)
+    end
+  end
 end

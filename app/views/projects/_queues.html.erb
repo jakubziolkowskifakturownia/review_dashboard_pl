@@ -38,9 +38,20 @@
         <% end %>
       </div>
     <% end %>
+    <% if dashboard.tasklist_options.any? %>
+      <%= render "shared/tasklist_picker", id: "inbox_tasklist_filter", options: dashboard.tasklist_options,
+                 selected_id: dashboard.selected_tasklist_id, url: select_inbox_tasklist_projects_path, method: :post,
+                 refresh_url: refresh_tracker_lists_project_path(dashboard.main_project) %>
+    <% end %>
     <% if dashboard.inbox_items.any? %>
-      <%= render partial: "projects/inbox_item", collection: dashboard.inbox_items, as: :item,
+      <%= render partial: "projects/inbox_item", collection: dashboard.inbox_items_on_list, as: :item,
                  locals: { dashboard: dashboard } %>
+      <% if dashboard.inbox_items_off_list.any? %>
+        <%# PR-y spoza wybranej listy nie znikają — dalej czekają na mnie w GitHubie. %>
+        <p class="qdivider muted">spoza wybranej listy (<%= dashboard.inbox_items_off_list.size %>)</p>
+        <%= render partial: "projects/inbox_item", collection: dashboard.inbox_items_off_list, as: :item,
+                   locals: { dashboard: dashboard } %>
+      <% end %>
     <% else %>
       <p class="empty">
         <% if dashboard.main_project.nil? %>

@@ -55,6 +55,46 @@ class Dashboard
     number ? tracker_lists_by_number.fetch(number, []) : []
   end
 
+  # Opcje selektu „Lista zadań": listy z zadań PR-ów widocznych w kolejce projektu
+  # głównego, z liczbą PR-ów. Wszystkich list trackera są setki, a większość byłaby
+  # tu pusta. Zapisana lista zostaje w opcjach także z zerem — inaczej nie dałoby
+  # się zobaczyć, co jest wybrane.
+  def tasklist_options
+    return [] unless main_project&.tracker_enabled?
+
+    @tasklist_options ||= begin
+      counts = Hash.new(0)
+      names = {}
+      inbox_items.each do |item|
+        tracker_lists_for(item).each do |list|
+          counts[list["id"].to_s] += 1
+          names[list["id"].to_s] = list["name"]
+        end
+      end
+      if (selected = main_project.inbox_tasklist_id).present? && !names.key?(selected)
+        names[selected] = tracker_list_name(selected) || "lista ##{selected}"
+      end
+      names.map { |id, name| { "id" => id, "name" => name, "count" => counts[id] } }
+           .sort_by { |option| option["name"].downcase }
+    end
+  end
+
+  def selected_tasklist_id = main_project&.inbox_tasklist_id.presence
+
+  # Wybrana lista nie chowa reszty, tylko ją spycha: PR spoza cyklu dalej czeka na mnie
+  # w GitHubie. Bez wybranej listy wszystko jest „na liście".
+  def inbox_items_on_list
+    return inbox_items unless selected_tasklist_id
+
+    inbox_items.select { |item| on_selected_list?(item) }
+  end
+
+  def inbox_items_off_list
+    return [] unless selected_tasklist_id
+
+    inbox_items.reject { |item| on_selected_list?(item) }
+  end
+
   def tracker_lists_by_number
     @tracker_lists_by_number ||= TrackerTask.lists_by_number(main_project)
   end
@@ -102,6 +142,15 @@ class Dashboard
   end
 
   private
+
+  def on_selected_list?(item)
+    tracker_lists_for(item).any? { |list| list["id"].to_s == selected_tasklist_id }
+  end
+
+  def tracker_list_name(id)
+    tracker_lists_by_number.each_value { |lists| lists.each { |list| return list["name"] if list["id"].to_s == id } }
+    nil
+  end
 
   def all_inbox_items
     @all_inbox_items ||= InboxItem.where(project: main_project).includes(:project).by_urgency.to_a

@@ -23,6 +23,8 @@ Rails.application.routes.draw do
       # Filtr kolejki po labelkach PR-a — należy do projektu głównego, jak sama kolejka.
       post :cycle_inbox_label
       post :toggle_inbox_commented
+      # Lista zadań z trackera wybrana w kolejce — jak filtry labelek, na projekcie głównym.
+      post :select_inbox_tasklist
     end
     member do
       post :archive
@@ -31,6 +33,8 @@ Rails.application.routes.draw do
       # bo listy (collaboratorzy, labelki, osoby trackera) są per repo/tracker.
       get :directory, to: "directories#show"
       post :refresh_directory, to: "directories#refresh"
+      # Listy zadań bywają przepinane — przycisk pobiera je od nowa dla całego projektu.
+      post :refresh_tracker_lists
       post :test_intum
     end
     resources :reviews, only: %i[index new create] do

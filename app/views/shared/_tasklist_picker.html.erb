@@ -1,0 +1,35 @@
+<%# Wybór listy zadań z trackera: pole z podpowiedziami (datalist) zamiast zwykłego
+    selektu, bo list bywa kilkanaście, a szuka się po kawałku nazwy („listopad").
+    Formularz wysyła id listy; tekst w polu to tylko wyświetlacz — mapę nazwa → id
+    robi tasklist_picker_controller. Wymagane: id, options, selected_id, url, method,
+    refresh_url; opcjonalnie hidden_params (np. sort indeksu review). %>
+<% selected = options.find { |option| option["id"] == selected_id.to_s } %>
+<div id="<%= id %>" class="label-filter tasklist-picker">
+  <%= form_with url: url, method: method, class: "tasklist-form",
+                data: { controller: "tasklist-picker", action: "submit->tasklist-picker#resolve" } do %>
+    <% local_assigns.fetch(:hidden_params, {}).each do |name, value| %>
+      <%= hidden_field_tag name, value, id: nil %>
+    <% end %>
+    <label for="<%= id %>_input">Lista zadań:</label>
+    <input type="search" id="<%= id %>_input" list="<%= id %>_options" autocomplete="off"
+           placeholder="wpisz, np. cykl…" value="<%= selected&.dig("name") %>" size="28"
+           data-tasklist-picker-target="input" data-action="change->tasklist-picker#pick">
+    <datalist id="<%= id %>_options">
+      <% options.each do |option| %>
+        <option value="<%= option["name"] %>" data-id="<%= option["id"] %>" label="<%= option["count"] %> PR"></option>
+      <% end %>
+    </datalist>
+    <input type="hidden" name="tasklist_id" value="<%= selected_id %>" data-tasklist-picker-target="hidden">
+  <% end %>
+  <% if selected_id.present? %>
+    <%= form_with url: url, method: method do %>
+      <% local_assigns.fetch(:hidden_params, {}).each do |name, value| %>
+        <%= hidden_field_tag name, value, id: nil %>
+      <% end %>
+      <%= hidden_field_tag :tasklist_id, "", id: nil %>
+      <button class="label-chip" title="zdejmij wybór listy">✕ bez listy</button>
+    <% end %>
+  <% end %>
+  <%= button_to "🔄 Odśwież listy", refresh_url, class: "btn btn-small",
+                title: "pobierz listy zadań z trackera od nowa (zadania bywają przepinane)" %>
+</div>
