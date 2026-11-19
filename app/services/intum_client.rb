@@ -46,6 +46,26 @@ class IntumClient
       .select { |task| task["task_id"].to_s == task_pk.to_s }
   end
 
+  # Listy zadań, na których leży zadanie (cykl, backlog, incydent…). JSON zadania
+  # ich nie zwraca, a filtr `tasks.json?tasklist_ids[]=` działa tylko w drugą stronę
+  # (lista → zadania, setki list) — jedynym źródłem jest strona HTML zadania.
+  # Zmiana HTML-a trackera skończy się pustą tablicą, nie wyjątkiem: chipy znikną,
+  # dashboard dalej działa.
+  def task_lists(scoped_id)
+    # `/t/<numer>`: pod `/organize/tasks/<numer>` przeglądarkowy Accept dostaje 301 właśnie tutaj.
+    response = @transport.get_html("/organize/tasks/t/#{scoped_id}", bearer: @token)
+    unless response.code.to_i.between?(200, 299)
+      raise Error, "tracker odpowiedział #{response.code} na stronę zadania ##{scoped_id}"
+    end
+
+    # Tracker renderuje każdy chip dwa razy (wersja szeroka i wąska) — stąd uniq.
+    Nokogiri::HTML(response.body).css("a[id^='task_tasklist_'][id$='_small']").filter_map do |link|
+      id = link["id"][/\Atask_tasklist_(\d+)_small\z/, 1]
+      name = link.parent["title"].to_s.delete_prefix("Lista ").strip.presence || link.text.gsub(/[✓\u00a0]/, " ").strip
+      { "id" => id, "name" => name, "url" => link["href"].to_s } if id && name.present?
+    end.uniq { |list| list["id"] }
+  end
+
   def post_comment(task_pk, content, responsible_id: nil)
     form = { "comment[commentable_id]" => task_pk,
              "comment[commentable_type]" => "Organize::Task",
@@ -80,6 +100,13 @@ class IntumClient
       request(Net::HTTP::Get.new(url(path, params)))
     end
 
+    # Strona HTML przyjmuje token wyłącznie jako Bearer — `?api_token=` daje tu 401.
+    def get_html(path, bearer:)
+      req = Net::HTTP::Get.new(URI.join(@base_url, path))
+      req["Authorization"] = "Bearer #{bearer}"
+      request(req, accept: "text/html")
+    end
+
     def post(path, params, form)
       req = Net::HTTP::Post.new(url(path, params))
       req.set_form_data(form)
@@ -92,9 +119,9 @@ class IntumClient
       URI.join(@base_url, path).tap { |u| u.query = URI.encode_www_form(params) }
     end
 
-    def request(req)
+    def request(req, accept: "application/json")
       req["User-Agent"] = USER_AGENT
-      req["Accept"] = "application/json"
+      req["Accept"] = accept
       uri = req.uri
       Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == "https",
                       open_timeout: OPEN_TIMEOUT, read_timeout: READ_TIMEOUT) do |http|

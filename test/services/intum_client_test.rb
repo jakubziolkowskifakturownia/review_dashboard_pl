@@ -22,6 +22,11 @@ class IntumClientTest < ActiveSupport::TestCase
       @responses[[ :get, path ]].shift or raise "brak odpowiedzi dla GET #{path}"
     end
 
+    def get_html(path, bearer:)
+      @calls << Call.new(:get_html, path, { bearer: bearer }, nil)
+      @responses[[ :get_html, path ]].shift or raise "brak odpowiedzi dla GET (HTML) #{path}"
+    end
+
     def post(path, params, form)
       @calls << Call.new(:post, path, params, form)
       @responses[[ :post, path ]].shift or raise "brak odpowiedzi dla POST #{path}"
@@ -109,5 +114,32 @@ class IntumClientTest < ActiveSupport::TestCase
     error = assert_raises(IntumClient::Error) { client(fake).task("123") }
     assert_includes error.message, "403"
     assert_includes error.message, "login_required"
+  end
+
+  test "task_lists czyta listy ze strony zadania bez duplikatów" do
+    fake = FakeTransport.new
+    fake.queue(:get_html, "/organize/tasks/t/123", code: 200, body: file_fixture("tracker_task_lists.html").read)
+
+    lists = client(fake).task_lists("123")
+
+    assert_equal [
+      { "id" => "101", "name" => "Cykl A", "url" => "https://tracker.example.com/organize/tasklists/101" },
+      { "id" => "102", "name" => "Backlog & B", "url" => "https://tracker.example.com/organize/tasklists/102" }
+    ], lists
+    assert_equal({ bearer: "tajny" }, fake.calls.sole.params)
+  end
+
+  test "task_lists zwraca pustą tablicę, gdy strona nie ma list" do
+    fake = FakeTransport.new
+    fake.queue(:get_html, "/organize/tasks/t/123", code: 200, body: "<html><body>nic</body></html>")
+
+    assert_equal [], client(fake).task_lists("123")
+  end
+
+  test "task_lists rzuca Error przy 401" do
+    fake = FakeTransport.new
+    fake.queue(:get_html, "/organize/tasks/t/123", code: 401, body: "login_required")
+
+    assert_raises(IntumClient::Error) { client(fake).task_lists("123") }
   end
 end
