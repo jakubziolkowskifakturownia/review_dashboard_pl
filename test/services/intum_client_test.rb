@@ -124,7 +124,9 @@ class IntumClientTest < ActiveSupport::TestCase
 
     assert_equal [
       { "id" => "101", "name" => "Cykl A", "url" => "https://tracker.example.com/organize/tasklists/101" },
-      { "id" => "102", "name" => "Backlog & B", "url" => "https://tracker.example.com/organize/tasklists/102" }
+      { "id" => "102", "name" => "Backlog & B", "url" => "https://tracker.example.com/organize/tasklists/102" },
+      # title listy typu sprint/cykl ma doklejony rodzaj („Sprint Wydanie C”) — nazwa z tekstu chipa
+      { "id" => "103", "name" => "Wydanie C", "url" => "https://tracker.example.com/organize/tasklists/103" }
     ], lists
     assert_equal({ bearer: "tajny" }, fake.calls.sole.params)
   end

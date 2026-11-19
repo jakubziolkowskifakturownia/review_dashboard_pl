@@ -61,7 +61,9 @@ class IntumClient
     # Tracker renderuje każdy chip dwa razy (wersja szeroka i wąska) — stąd uniq.
     Nokogiri::HTML(response.body).css("a[id^='task_tasklist_'][id$='_small']").filter_map do |link|
       id = link["id"][/\Atask_tasklist_(\d+)_small\z/, 1]
-      name = link.parent["title"].to_s.delete_prefix("Lista ").strip.presence || link.text.gsub(/[✓\u00a0]/, " ").strip
+      # Nazwa z tekstu chipa: `title` ma doklejony rodzaj listy („Lista …”, „Cykl …”,
+      # „Sprint …”), a tekst tylko znacznik ✓ i twardą spację.
+      name = link.text.gsub(/[✓\u00a0]/, " ").squish.presence || link.parent["title"].to_s.delete_prefix("Lista ").strip
       { "id" => id, "name" => name, "url" => link["href"].to_s } if id && name.present?
     end.uniq { |list| list["id"] }
   end
