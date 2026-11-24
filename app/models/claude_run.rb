@@ -25,8 +25,8 @@ class ClaudeRun < ApplicationRecord
   # w kodzie - profil jak verify_findings.
   # reconcile: wznowiona sesja review uzgadnia znaleziska z werdyktami - profil jak followup.
   TIMEOUTS = { "describe" => 900, "describe_task" => 900, "review" => 3600, "followup" => 1800, "compact" => 600,
-               "comment_task" => 900, "verify_fixes" => 900, "verify_findings" => 1800, "task_fit" => 1800,
-               "reconcile" => 1800 }.freeze
+               "comment_task" => 900, "verify_fixes" => 900, "verify_findings" => 1800, "task_fit" => 1800 }
+             .then { |timeouts| timeouts.merge("reconcile" => timeouts["followup"]) }.freeze
   # Zwis sesji objawia się ciszą w strumieniu — claude przestaje emitować zdarzenia,
   # choć proces żyje. Czekanie do limitu całkowitego nic wtedy nie daje, więc ubijamy
   # wcześniej i (dla review) ponawiamy. Pracująca sesja bije zdarzeniami co kilka sekund,

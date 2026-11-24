@@ -36,9 +36,9 @@ class Finding < ApplicationRecord
   # Los znaleziska po uzgodnieniu review z werdyktami weryfikatora i zgodnością
   # z zadaniem. `dropped` znika z aktywnej listy, ale zostaje w bazie z uzasadnieniem
   # w `resolution_note`. nil znaczy „uzgodnienie jeszcze nie ruszało tego znaleziska".
-  RESOLUTIONS = %w[kept dropped adjusted].freeze
-  RESOLUTION_LABELS = { "kept" => "utrzymane po uzgodnieniu", "dropped" => "usunięte po uzgodnieniu",
-                        "adjusted" => "poprawione po uzgodnieniu" }.freeze
+  RESOLUTIONS = %w[dropped kept downgraded].freeze
+  RESOLUTION_LABELS = { "dropped" => "usunięte po uzgodnieniu", "kept" => "zostawione mimo weryfikacji",
+                        "downgraded" => "obniżony priorytet" }.freeze
 
   belongs_to :review
 
