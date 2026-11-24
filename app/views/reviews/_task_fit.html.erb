@@ -78,7 +78,7 @@
           <span class="status-badge checklist-status-<%= item["status"].to_s.tr("/", "_") %>"><%= task_fit_status_label(item["status"]) %></span>
           <strong><%= item["text"] %></strong>
           <% if item["reconciled_from"] %>
-            <div class="muted reconcile-note">task_fit: <%= task_fit_status_label(item["reconciled_from"]) %> → po uzgodnieniu: <%= task_fit_status_label(item["status"]) %> — <%= item["note"] %></div>
+            <div class="muted reconcile-note">task_fit: <%= task_fit_status_label(item["reconciled_from"]) %> → po uzgodnieniu: <%= task_fit_status_label(item["status"]) %><%= " — #{item["note"]}" if item["note"].present? %></div>
           <% elsif item["note"].present? %><div class="muted"><%= item["note"] %></div><% end %>
           <% if item["needed_evidence"].present? %><div class="muted">Do zdobycia: <%= item["needed_evidence"] %></div><% end %>
         </li>

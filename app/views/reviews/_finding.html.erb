@@ -11,10 +11,10 @@
   <% if finding.file_location.present? %><code class="inline"><%= finding.file_location %></code><% end %>
   <%# Uzasadnienia jako tekst, nie tooltip: reviewer ma widzieć, dlaczego tak, a nie inaczej. %>
   <% if %w[refuted disputed].include?(finding.verdict) %>
-    <p class="muted reconcile-note">Weryfikator (<%= finding.verdict_label %>): <%= finding.verdict_note %></p>
+    <p class="muted reconcile-note">Weryfikator (<%= finding.verdict_label %>)<%= ": #{finding.verdict_note}" if finding.verdict_note.present? %></p>
   <% end %>
   <% if finding.resolution.present? %>
-    <p class="muted reconcile-note">Po uzgodnieniu (<%= finding.resolution_label %>): <%= finding.resolution_note %></p>
+    <p class="muted reconcile-note">Po uzgodnieniu (<%= finding.resolution_label %>)<%= ": #{finding.resolution_note}" if finding.resolution_note.present? %></p>
   <% end %>
   <details><summary>szczegóły</summary><%= markdown finding.body %></details>
 </div>

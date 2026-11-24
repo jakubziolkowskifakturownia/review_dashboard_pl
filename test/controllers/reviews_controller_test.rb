@@ -1495,6 +1495,20 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Brak listy AC z opisu zadania - najpierw wygeneruj opis zadania", flash[:alert]
   end
 
+  test "panel bez notatki nie zostawia wiszącego separatora" do
+    review = gated_review(verdict: "partial")
+    review.update!(task_fit_reconciliation: {
+                     "changes" => { "ac1" => { "from" => "unverifiable", "to" => "met", "note" => "" } },
+                     "verdict" => "fits", "at" => Time.current.iso8601 })
+    review.findings.create!(priority: "critical", title: "nil", body: "x", verdict: "refuted", verdict_note: "",
+                            resolution: "dropped", resolution_note: nil)
+
+    get review_path(review)
+
+    assert_select ".reconcile-note", text: /[:—]\s*\z/, count: 0
+    assert_select ".finding p.reconcile-note", text: /\AWeryfikator \(.*obalone\)\z/
+  end
+
   test "panel pokazuje reviewerowi uzasadnienia weryfikatora i uzgodnienia jako tekst" do
     review = gated_review(verdict: "partial")
     review.update!(task_fit_reconciliation: {
