@@ -32,6 +32,9 @@ Miejsce: `<%= finding.file_location %>`
 <%= finding.body %>
 
 **Werdykt weryfikacji:** `<%= finding.verdict %>` — <%= finding.verdict_note %>
+<% if finding.resolution.present? -%>
+**Poprzednie rozstrzygnięcie:** `<%= finding.resolution %>`<%= " — #{finding.resolution_note}" if finding.resolution_note.present? %>
+<% end -%>
 
 <% end -%>
 Każde z nich rozstrzygnij po powrocie do kodu:
@@ -40,6 +43,8 @@ Każde z nich rozstrzygnij po powrocie do kodu:
 - `downgraded` — problem jest, ale mniejszy: podaj nowy, niższy `priority`.
 
 `note`: 1–2 zdania, konkret z kodu (plik:linia), odnosi się wprost do notatki weryfikacji.
+
+„Poprzednie rozstrzygnięcie” to wynik wcześniejszego uzgodnienia — sprawdź je jak każde inne, nie przepisuj. Znalezisko, które poprzednio wyszło `dropped`, a teraz je zostawiasz (`kept` / `downgraded`), musi znów pojawić się w `summary` — obecne `summary` go nie wymienia.
 <% end -%>
 <% if (verdict = review.task_fit_original_verdict) -%>
 
@@ -62,13 +67,18 @@ Potrzebny dowód: <%= item["needed_evidence"] %>
 Domyślnie każdy status zostaje. Zmieniasz go tylko z dowodem (plik:linia, nazwa testu, numer komentarza) — wpisem w `task_fit_changes`. Bez dowodu = bez zmiany. Statusy: AC → `met` / `unmet` / `unverifiable`; pułapka → `addressed` / `open`; wymóg procesu → `present` / `missing` / `n/a`.
 
 Tak samo `evidence_found`: zmieniasz tylko z dowodem na przyczynę objawu.
+
+`note` zmiany punktu trafia do autora PR-a (w decyzji, przy punkcie) — pisz go jako dowód z kodu dla autora: plik:linia, nazwa testu, numer komentarza. Ani słowa o weryfikacji, `task_fit`, drugiej sesji, sporze czy uzgodnieniu. To samo w `note` przy `evidence_found`.
 <% end -%>
 
 ## Nowe `summary` — tekst dla autora PR-a
 
 - Jeden spójny wynik: autor ma z niego wprost wiedzieć, co poprawić.
 - Ta sama struktura co obecne `summary`: te same sekcje, w tej samej kolejności.
-- `**Krótko:**` i „Zgodność z zadaniem” zgadzają się z punktami po Twoich zmianach. Gdy którekolwiek AC jest niespełnione albo niesprawdzalne, `Krótko` nie może brzmieć „approve” ani „można mergować” — zaczyna się od „Do ręcznego sprawdzenia: …” albo „Nie rozwiązuje zadania: …”.
+- `**Krótko:**` i „Zgodność z zadaniem” zgadzają się z punktami po Twoich zmianach. Kolejność jest wiążąca:
+  1. którekolwiek AC `unmet`, pułapka `open`, wymóg procesu `missing` albo brak dowodu na przyczynę objawu (`evidence_found` false) → `Krótko` zaczyna się od „Nie rozwiązuje zadania: …”;
+  2. inaczej, gdy którekolwiek AC jest `unverifiable` → `Krótko` zaczyna się od „Do ręcznego sprawdzenia: …”;
+  3. dopiero gdy nic z powyższych, wolno napisać „approve” albo „można mergować”.
 - Znalezisk `dropped` nie wymieniasz nigdzie. `downgraded` opisujesz z nowym priorytetem.
 - Ani słowa o weryfikacji, drugiej sesji, sporze czy uzgodnieniu — autor widzi tylko wynik.
 
@@ -81,19 +91,14 @@ Zapisz plik `<%= review.artifacts_dir.join("reconcile.json") %>`:
 ```json
 {
   "summary": "nowe summary w markdown, dla autora PR-a",
-  "findings": [
-    {"id": <%= findings.first&.id || 1 %>, "resolution": "dropped|kept|downgraded", "priority": "minor", "note": "1–2 zdania z dowodem z kodu"}
-  ],
-  "task_fit_changes": [
-    {"id": "ac1", "status": "met", "note": "dowód: plik:linia, nazwa testu albo numer komentarza"}
-  ],
-  "evidence_found": {"value": true, "note": "dowód: …"}
+  "findings": [],
+  "task_fit_changes": []
 }
 ```
 
-- `findings`: wpis dla każdego znaleziska z listy wyżej. `priority` tylko przy `downgraded`.
-- `task_fit_changes`: tylko zmienione punkty; bez zmian = `[]`.
-- `evidence_found`: tylko gdy zmieniasz ocenę dowodu na przyczynę; inaczej pomiń klucz.
+- `findings`: wpis dla każdego znaleziska z listy wyżej — obiekt z kluczami `id` (liczba z nagłówka znaleziska), `resolution` (`dropped`, `kept` albo `downgraded`) i `note` (1–2 zdania z dowodem z kodu). Przy `downgraded` dodatkowo `priority` — niższy niż obecny.
+- `task_fit_changes`: tylko zmienione punkty — obiekt z kluczami `id` (id punktu z nagłówka), `status` (nowy status dozwolony dla rodzaju) i `note` (dowód). Bez zmian = `[]`.
+- `evidence_found`: tylko gdy zmieniasz ocenę dowodu na przyczynę — dodaj klucz `evidence_found` z obiektem o kluczach `value` (nowa ocena, `true` albo `false`) i `note` (dowód). Inaczej pomiń klucz.
 
 Nie kończ odpowiedzi, dopóki działa cokolwiek w tle (testy, serwer, subagent). Sesja jest headless: po Twojej ostatniej wiadomości proces jest ubijany, więc „dopiszę wynik później" nigdy nie nastąpi. Długie zadanie uruchom na pierwszym planie albo poczekaj na jego wynik i dopiero wtedy zapisz reconcile.json.
 

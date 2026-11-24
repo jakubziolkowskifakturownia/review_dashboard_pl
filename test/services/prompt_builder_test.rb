@@ -643,6 +643,57 @@ class PromptBuilderTest < ActiveSupport::TestCase
     assert_not_includes prompt, "## Zgodność z zadaniem"
   end
 
+  # TaskFitImporter.verdict_for daje „misses” nie tylko za niespełnione AC - także za otwartą
+  # pułapkę, brak w procesie i brak dowodu na przyczynę. Krótko musi iść tą samą regułą.
+  test "prompt uzgodnienia niesie pełną regułę Krótko zgodną z werdyktem zgodności" do
+    prompt = PromptBuilder.reconcile(reconcile_review, resumed: true)
+    rule = prompt[/^- `\*\*Krótko:\*\*`.*?(?=^- [^ ])/m]
+    assert rule, "brak reguły Krótko"
+    [ "AC `unmet`", "pułapka `open`", "wymóg procesu `missing`", "`evidence_found`", "„Nie rozwiązuje zadania: …”",
+      "`unverifiable`", "„Do ręcznego sprawdzenia: …”", "approve" ].each { |fragment| assert_includes rule, fragment }
+  end
+
+  # Drugie uzgodnienie nie może rozstrzygać w ciemno: musi widzieć, co postanowiło pierwsze.
+  test "prompt uzgodnienia pokazuje poprzednie rozstrzygnięcie znaleziska" do
+    review = reconcile_review
+    review.findings.create!(priority: "minor", title: "Nil", body: "x", verdict: "refuted", verdict_note: "guard",
+                            resolution: "dropped", resolution_note: "guard w a.rb:3 to łapie")
+    prompt = PromptBuilder.reconcile(review, resumed: true)
+    assert_includes prompt, "**Poprzednie rozstrzygnięcie:** `dropped` — guard w a.rb:3 to łapie"
+    assert_includes prompt, "musi znów pojawić się w `summary`"
+  end
+
+  # note zmiany punktu ląduje w decyzji przy punkcie (DecisionDraft#note_suffix).
+  test "prompt uzgodnienia każe pisać note zmiany punktu jako dowód dla autora, bez sporu" do
+    prompt = PromptBuilder.reconcile(reconcile_review, resumed: true)
+    assert_includes prompt, "`note` zmiany punktu trafia do autora PR-a"
+  end
+
+  # Przykład do skopiowania przeszedłby przez importer jako zmiana ac1 na „met” z notatką „dowód: …”.
+  test "przykład JSON w prompcie uzgodnienia nie niesie gotowych zmian do skopiowania" do
+    prompt = PromptBuilder.reconcile(reconcile_review, resumed: true)
+    example = JSON.parse(prompt[/```json\n(.*?)```/m, 1])
+    assert_equal({ "findings" => [], "task_fit_changes" => [] }, example.except("summary"))
+  end
+
+  # Followup przepisuje cały result.json, a ten dalej trzyma znaleziska sprzed uzgodnienia.
+  test "followup nie przywraca znalezisk usuniętych po uzgodnieniu" do
+    review = reviews(:pr_review)
+    review.update!(summary: "S")
+    review.findings.create!(priority: "minor", title: "Usunięta uwaga", body: "x", resolution: "dropped")
+    review.findings.create!(priority: "minor", title: "Zostawiona uwaga", body: "x", resolution: "kept")
+
+    fresh = PromptBuilder.followup(review, "sprawdź", resumed: false)
+    context = fresh[/## Kontekst poprzedniego review.*?(?=Reviewer \(człowiek\))/m]
+    assert_not_includes context, "Usunięta uwaga"
+    assert_includes context, "Zostawiona uwaga"
+
+    prompt = PromptBuilder.followup(review, "sprawdź", resumed: true)
+    assert_includes prompt, "usunięte po uzgodnieniu"
+    assert_includes prompt, "  - Usunięta uwaga"
+    assert_not_includes prompt, "  - Zostawiona uwaga"
+  end
+
   test "verify_fixes pomija usunięte po uzgodnieniu znaleziska, zostawione zostają" do
     review = reviews(:pr_review)
     review.update!(decision_head_sha: "aaa1111", branch: "sl-fix")
