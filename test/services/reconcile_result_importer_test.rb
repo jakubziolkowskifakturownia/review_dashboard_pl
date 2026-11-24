@@ -64,6 +64,15 @@ class ReconcileResultImporterTest < ActiveSupport::TestCase
     assert_not @review.findings.from_task_fit.any? { |f| f.title.start_with?("AC niespełnione") }
   end
 
+  test "kolejne uzgodnienie bez zmian przywraca oryginalne znaleziska zgodności" do
+    import("task_fit_changes" => [ { "id" => "ac1", "status" => "met", "note" => "app/x.rb:40" } ])
+    assert_not @review.findings.from_task_fit.any? { |f| f.title.start_with?("AC niespełnione") }
+    import({})
+    assert_nil @review.task_fit_reconciliation
+    assert_equal "misses", @review.task_fit_verdict
+    assert @review.findings.from_task_fit.any? { |f| f.title.start_with?("AC niespełnione") }
+  end
+
   test "evidence_found z notatką zmienia werdykt i znaleziska przesłanki" do
     @review.update!(task_fit: @review.task_fit.merge("evidence_found" => false))
     TaskFitImporter.import(@review, "symptom" => "s", "assumed_cause" => "c", "evidence" => "e", "evidence_found" => false,

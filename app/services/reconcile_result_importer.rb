@@ -2,7 +2,8 @@
 # rekordy: rozstrzyga znaleziska obalone/sporne oraz (z dowodem) poprawia oceny zgodności
 # z zadaniem. Niczego nie kasuje poza znaleziskami bramki zgodności, które przelicza od nowa.
 # Werdykty weryfikatora, `raw_result` i oryginalny wynik `task_fit` zostają nietknięte -
-# zmiany zgodności ląduje w nakładce `reviews.task_fit_reconciliation`.
+# zmiany zgodności lądują w nakładce `reviews.task_fit_reconciliation`. Każde uzgodnienie
+# zastępuje nakładkę w całości: zmiany porównujemy z oryginałem, nie scalamy z poprzednią.
 class ReconcileResultImporter
   Missing = Class.new(StandardError)
   FILENAME = "reconcile.json"
@@ -62,16 +63,16 @@ class ReconcileResultImporter
     items = @review.task_fit_original_items
     changes = accepted_changes(items)
     evidence = accepted_evidence
-    if changes.empty? && evidence.nil?
-      @review.update!(task_fit_reconciliation: nil)
-      return
-    end
-
     items = items.map { |item| (change = changes[item["id"].to_s]) ? item.merge("status" => change["to"], "note" => change["note"]) : item }
     evidence_found = evidence ? evidence["to"] : @review.task_fit["evidence_found"]
-    verdict = TaskFitImporter.verdict_for(items, evidence_found)
-    @review.update!(task_fit_reconciliation: { "changes" => changes, "evidence_found" => evidence,
-                                               "verdict" => verdict, "at" => Time.current.iso8601 })
+    overlay = if changes.empty? && evidence.nil?
+      nil
+    else
+      { "changes" => changes, "evidence_found" => evidence,
+        "verdict" => TaskFitImporter.verdict_for(items, evidence_found), "at" => Time.current.iso8601 }
+    end
+    @review.update!(task_fit_reconciliation: overlay)
+    # Zawsze od nowa: poprzednie uzgodnienie mogło zostawić znaleziska z innego zestawu punktów.
     rebuild_task_fit_findings(items, evidence_found)
   end
 
