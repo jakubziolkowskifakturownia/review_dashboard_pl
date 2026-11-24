@@ -8,6 +8,9 @@ class ReconcileResultImporter
   Missing = Class.new(StandardError)
   FILENAME = "reconcile.json"
   RECONCILABLE_VERDICTS = %w[refuted disputed].freeze
+  # Co o znalezisku zgodności ustaliły inne sesje (weryfikacja zasadności, weryfikacja
+  # poprawek) - przebudowa znalezisk nie może tego zgubić.
+  CARRIED_ATTRIBUTES = %w[verdict verdict_note fix_status fix_note].freeze
 
   # `written_after`: start sesji - jak w ReviewResultImporter, reconcile.json poprzedniego
   # przebiegu zostaje na dysku i sama obecność pliku nie dowodzi, że ta sesja go zapisała.
@@ -25,7 +28,12 @@ class ReconcileResultImporter
     new(review, data).import
   end
 
+  # Bez summary zostałoby stare, które dalej wymienia znaleziska właśnie usunięte -
+  # decyzja przeczyłaby sama sobie. Lepiej nie ruszać niczego.
   def initialize(review, data)
+    raise Missing, "#{FILENAME} nie jest obiektem JSON - uzgodnienie niedokończone" unless data.is_a?(Hash)
+    raise Missing, "#{FILENAME} bez summary - uzgodnienie niedokończone" unless data["summary"].is_a?(String) && data["summary"].present?
+
     @review = review
     @data = data
   end
@@ -34,7 +42,7 @@ class ReconcileResultImporter
     @review.transaction do
       resolve_findings
       reconcile_task_fit
-      @review.update!(summary: @data["summary"]) if @data["summary"].present?
+      @review.update!(summary: @data["summary"])
     end
   end
 
@@ -42,14 +50,21 @@ class ReconcileResultImporter
 
   def resolve_findings
     candidates = @review.findings.from_review.where(verdict: RECONCILABLE_VERDICTS).index_by(&:id)
-    Array(@data["findings"]).each do |entry|
-      finding = candidates[entry["id"]]
+    entries("findings").each do |entry|
+      # to_i: model potrafi podać id jako string.
+      finding = candidates[entry["id"].to_i]
       next unless finding && Finding::RESOLUTIONS.include?(entry["resolution"])
 
       attrs = { resolution: entry["resolution"], resolution_note: entry["note"] }
       attrs[:priority] = entry["priority"] if entry["resolution"] == "downgraded" && lower_priority?(entry["priority"], finding.priority)
       finding.update!(attrs)
     end
+  end
+
+  # Tylko wpisy-obiekty: string czy null w tablicy to błąd modelu, nie powód, żeby wywrócić
+  # całe uzgodnienie.
+  def entries(key)
+    Array(@data[key]).grep(Hash)
   end
 
   # PRIORITIES jest posortowane od najwyższego, więc niższy priorytet = większy indeks.
@@ -63,7 +78,7 @@ class ReconcileResultImporter
     items = @review.task_fit_original_items
     changes = accepted_changes(items)
     evidence = accepted_evidence
-    items = items.map { |item| (change = changes[item["id"].to_s]) ? item.merge("status" => change["to"], "note" => change["note"]) : item }
+    items = items.map { |item| (change = changes[item["id"].to_s]) ? Review.apply_task_fit_change(item, change) : item }
     evidence_found = evidence ? evidence["to"] : @review.task_fit["evidence_found"]
     overlay = if changes.empty? && evidence.nil?
       nil
@@ -79,7 +94,7 @@ class ReconcileResultImporter
   # Zmiana punktu: id znane, status dozwolony dla rodzaju i różny od oryginału, note niepusta.
   def accepted_changes(items)
     by_id = items.index_by { |item| item["id"].to_s }
-    Array(@data["task_fit_changes"]).each_with_object({}) do |entry, accepted|
+    entries("task_fit_changes").each_with_object({}) do |entry, accepted|
       item = by_id[entry["id"].to_s] or next
       allowed, = TaskFitImporter::RULES[item["kind"]]
       next unless allowed&.include?(entry["status"]) && entry["status"] != item["status"] && entry["note"].present?
@@ -98,7 +113,10 @@ class ReconcileResultImporter
 
   def rebuild_task_fit_findings(items, evidence_found)
     result = @review.task_fit.slice("symptom", "assumed_cause", "evidence").merge("evidence_found" => evidence_found)
+    carried = @review.findings.from_task_fit.to_h { |finding| [ finding.title, finding.attributes.slice(*CARRIED_ATTRIBUTES) ] }
     @review.findings.from_task_fit.destroy_all
-    TaskFitImporter.findings_attributes(items, result).each { |attrs| @review.findings.create!(attrs.merge(source: "task_fit")) }
+    TaskFitImporter.findings_attributes(items, result).each do |attrs|
+      @review.findings.create!(attrs.merge(carried.fetch(attrs[:title], {})).merge(source: "task_fit"))
+    end
   end
 end

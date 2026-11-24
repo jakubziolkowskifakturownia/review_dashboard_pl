@@ -23,8 +23,10 @@ class ReconcileResultImporterTest < ActiveSupport::TestCase
 
   teardown { FileUtils.rm_rf(@review.artifacts_dir) }
 
+  # summary jest obowiązkowe (bez niego zostałoby stare, z usuniętymi znaleziskami),
+  # więc testy, które sprawdzają co innego, dostają je z automatu.
   def import(data)
-    ReconcileResultImporter.import(@review, data)
+    ReconcileResultImporter.import(@review, { "summary" => "nowe" }.merge(data))
     @review.reload
   end
 
@@ -101,8 +103,52 @@ class ReconcileResultImporterTest < ActiveSupport::TestCase
     import("summary" => "nowe")
     assert_equal "nowe", @review.summary
     assert_equal '{"raw":true}', @review.raw_result
-    import("summary" => "")
-    assert_equal "nowe", @review.summary
+  end
+
+  # Stare summary dalej wymienia znaleziska, które uzgodnienie właśnie usunęło.
+  test "brak albo puste summary to Missing i niczego nie zmienia" do
+    [ {}, { "summary" => " " } ].each do |data|
+      assert_raises(ReconcileResultImporter::Missing) do
+        ReconcileResultImporter.import(@review, data.merge("findings" => [ { "id" => @refuted.id, "resolution" => "dropped", "note" => "x" } ]))
+      end
+    end
+    assert_equal "stare", @review.reload.summary
+    assert_nil @refuted.reload.resolution
+  end
+
+  test "JSON spoza obiektu to Missing" do
+    assert_raises(ReconcileResultImporter::Missing) { ReconcileResultImporter.import(@review, [ { "summary" => "x" } ]) }
+  end
+
+  test "id znaleziska jako string też wiąże, wpisy spoza obiektów są pomijane" do
+    import("findings" => [ "dropped", nil, { "id" => @refuted.id.to_s, "resolution" => "dropped", "note" => "racja" } ],
+           "task_fit_changes" => [ 1, "ac1", { "id" => "ac1", "status" => "met", "note" => "app/x.rb:40" } ])
+    assert_equal "dropped", @refuted.reload.resolution
+    assert_equal "fits", @review.task_fit_verdict
+  end
+
+  # Przebudowa znalezisk zgodności nie może kasować tego, co o nich ustaliła weryfikacja
+  # i weryfikacja poprawek - uzgodnienie nie zmienia verdict*/fix_*.
+  test "znalezisko zgodności zachowuje werdykt i ocenę poprawki przez uzgodnienie bez zmian" do
+    finding = @review.findings.from_task_fit.sole
+    finding.update!(verdict: "confirmed", verdict_note: "potwierdzam", fix_status: "ignored", fix_note: "dalej brak")
+    import("findings" => [ { "id" => @refuted.id, "resolution" => "kept", "note" => "x" } ])
+    rebuilt = @review.findings.from_task_fit.sole
+    assert_equal [ finding.title, "confirmed", "potwierdzam", "ignored", "dalej brak" ],
+                 [ rebuilt.title, rebuilt.verdict, rebuilt.verdict_note, rebuilt.fix_status, rebuilt.fix_note ]
+  end
+
+  # needed_evidence opisuje, czego brakuje do rozstrzygnięcia - po rozstrzygnięciu nieaktualne.
+  test "rozstrzygnięty punkt niesprawdzalny gubi needed_evidence" do
+    TaskFitImporter.import(@review, "symptom" => "s", "assumed_cause" => "c", "evidence" => "e", "evidence_found" => true,
+                                    "criteria" => [ { "id" => "ac1", "status" => "unverifiable", "note" => "?", "needed_evidence" => "log z produkcji" },
+                                                    { "id" => "ac2", "status" => "met", "note" => "ok" } ])
+    @review.reload
+    import("task_fit_changes" => [ { "id" => "ac1", "status" => "unmet", "note" => "app/x.rb:40 nie wysyła" } ])
+    item = @review.task_fit_items.find { |i| i["id"] == "ac1" }
+    assert_nil item["needed_evidence"]
+    assert_includes @review.findings.from_task_fit.sole.body, TaskFitImporter::TEMPLATES["unmet"][:fix]
+    assert_equal "log z produkcji", @review.task_fit_original_items.find { |i| i["id"] == "ac1" }["needed_evidence"]
   end
 
   test "call czyta reconcile.json" do

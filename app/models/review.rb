@@ -550,8 +550,15 @@ class Review < ApplicationRecord
     changes = task_fit_reconciliation&.dig("changes") || {}
     task_fit_original_items.map do |item|
       change = changes[item["id"].to_s]
-      change ? item.merge("status" => change["to"], "note" => change["note"], "reconciled_from" => change["from"]) : item
+      change ? Review.apply_task_fit_change(item, change).merge("reconciled_from" => change["from"]) : item
     end
+  end
+
+  # Zmiana punktu z uzgodnienia. needed_evidence mówi, czego brakuje do rozstrzygnięcia -
+  # przy rozstrzygniętym punkcie jest nieaktualne i podpowiadałoby autorowi zły krok.
+  def self.apply_task_fit_change(item, change)
+    changed = item.merge("status" => change["to"], "note" => change["note"])
+    task_fit_status_unverifiable?(change["to"]) ? changed : changed.except("needed_evidence")
   end
 
   # Statusy, które sesja rozstrzygnęła na zielono albo uznała za niedotyczące -
