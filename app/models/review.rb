@@ -351,6 +351,19 @@ class Review < ApplicationRecord
       !findings_verification_in_progress?
   end
 
+  # Jest co uzgadniać (obalone/sporne znaleziska albo zgodność z zadaniem poniżej „fits")
+  # i nic innego nie pisze po wyniku review.
+  def reconcilable?
+    status.in?(FOLLOWUPABLE_STATUSES) && branch.present? &&
+      !findings_verification_in_progress? && !task_fit_in_progress? && !reconcile_in_progress? &&
+      (findings.from_review.where(verdict: %w[refuted disputed]).exists? ||
+        task_fit_original_verdict.in?(%w[partial misses]))
+  end
+
+  def reconcile_in_progress?
+    claude_runs.exists?(kind: "reconcile", status: %w[pending running])
+  end
+
   # Weryfikacja chodzi cyklem pobocznym i nie zmienia statusu review — bez tego
   # pytania ani lista, ani karta znalezisk nie miałyby jak pokazać, że coś trwa.
   def findings_verification_in_progress?

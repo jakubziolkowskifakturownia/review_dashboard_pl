@@ -50,6 +50,9 @@ class OrphanedRunsCleanup
   # Tylko plik zapisany po starcie przerwanego runa: starszy to wynik poprzedniego
   # przebiegu, a nie dokończona praca.
   def self.recover_from_disk(review)
+    run = review.last_claude_run
+    return recover_reconcile(review, run) if run&.kind == "reconcile"
+
     return false unless review.status == "reviewing" && review.result_on_disk?
 
     ReviewResultImporter.call(review, written_after: review.last_lifecycle_run&.created_at)
@@ -57,6 +60,19 @@ class OrphanedRunsCleanup
     true
   rescue StandardError
     false
+  end
+
+  # Uzgodnienie to cykl poboczny na pożyczonym statusie „reviewing": nie wolno go kończyć
+  # ścieżką review (result.json to wynik sprzed uzgodnienia, a mark_reviewed! odpaliłby
+  # task_fit). Importujemy reconcile.json, o ile sesja zdążyła go zapisać, i oddajemy status.
+  def self.recover_reconcile(review, run)
+    begin
+      ReconcileResultImporter.call(review, written_after: run.created_at)
+    rescue ReconcileResultImporter::Missing
+      # Sesja nie dokończyła pracy — wynik review zostaje taki, jaki był.
+    end
+    review.update!(status: run.previous_status.presence || "reviewed")
+    true
   end
 
   def self.process_alive?(pid)

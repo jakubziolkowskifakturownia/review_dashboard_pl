@@ -531,6 +531,35 @@ class ReviewTest < ActiveSupport::TestCase
     assert_not review.findings_verifiable?, "bez brancha sesja nie ma czego czytać"
   end
 
+  test "reconcilable? wymaga materiału do uzgodnienia i spokoju" do
+    review = reviews(:pr_review)
+    review.update!(status: "reviewed", branch: "sl-fix-vat")
+    review.findings.create!(priority: "critical", title: "nil", body: "x", verdict: "confirmed")
+    review.update_columns(task_fit_status: "ready", task_fit: { "verdict" => "fits" })
+    assert_not review.reload.reconcilable?, "bez werdyktów obalających i z task_fit fits nie ma czego uzgadniać"
+
+    review.findings.create!(priority: "minor", title: "b", body: "x", verdict: "refuted")
+    assert review.reload.reconcilable?
+
+    review.update!(status: "reviewing")
+    assert_not review.reconcilable?, "w trakcie review nie uzgadniamy"
+
+    review.update!(status: "reviewed")
+    run = review.claude_runs.create!(kind: "verify_findings", claude_config: "/Users/dev/.claude")
+    assert_not review.reconcilable?, "trwa weryfikacja"
+    run.update!(status: "succeeded")
+
+    review.claude_runs.create!(kind: "reconcile", claude_config: "/Users/dev/.claude")
+    assert_not review.reload.reconcilable?, "trwa uzgodnienie"
+  end
+
+  test "reconcilable? z samego task_fit partial" do
+    review = reviews(:pr_review)
+    review.update!(status: "reviewed", branch: "sl-fix-vat")
+    review.update_columns(task_fit_status: "ready", task_fit: { "verdict" => "partial" })
+    assert review.reload.reconcilable?
+  end
+
   test "should block a second verification while one is pending" do
     review = reviews(:pr_review)
     review.update!(status: "reviewed", branch: "sl-fix-vat")

@@ -1,6 +1,8 @@
 require "test_helper"
 
 class OrphanedRunsCleanupTest < ActiveSupport::TestCase
+  include ActiveJob::TestHelper
+
   setup do
     @review = reviews(:pr_review)
     # Obrona przed cudzym result.json na wspólnej ścieżce fixture'a: recover_from_disk
@@ -90,6 +92,40 @@ class OrphanedRunsCleanupTest < ActiveSupport::TestCase
     @review.reload
     assert_equal({ status: "failed", summary_imported: false },
                  { status: @review.status, summary_imported: @review.summary == "Stary przebieg" })
+  ensure
+    FileUtils.rm_rf(@review.artifacts_dir)
+  end
+
+  test "odzysk po restarcie w trakcie uzgodnienia nie importuje result.json ani nie odpala task_fit" do
+    @review.update!(status: "reviewing", summary: "Stare")
+    finding = @review.findings.create!(priority: "minor", title: "Zostaje", body: "x", verdict: "refuted")
+    @review.claude_runs.create!(kind: "reconcile", claude_config: "/x", status: "running",
+                                supervisor_pid: nil, previous_status: "decided")
+    FileUtils.mkdir_p(@review.artifacts_dir)
+    File.write(@review.artifacts_dir.join("result.json"),
+               { summary: "Z result.json", findings: [], playwright: nil }.to_json)
+    File.write(@review.artifacts_dir.join("reconcile.json"), { summary: "Z uzgodnienia", findings: [] }.to_json)
+
+    assert_no_enqueued_jobs(only: TaskFitJob) { OrphanedRunsCleanup.call }
+    @review.reload
+    assert_equal({ status: "decided", summary: "Z uzgodnienia", findings: [ finding.id ] },
+                 { status: @review.status, summary: @review.summary, findings: @review.findings.map(&:id) })
+  ensure
+    FileUtils.rm_rf(@review.artifacts_dir)
+  end
+
+  test "odzysk uzgodnienia ze starym reconcile.json tylko przywraca status" do
+    @review.update!(status: "reviewing", summary: "Stare")
+    @review.claude_runs.create!(kind: "reconcile", claude_config: "/x", status: "running",
+                                supervisor_pid: nil, previous_status: "decided")
+    FileUtils.mkdir_p(@review.artifacts_dir)
+    stale = @review.artifacts_dir.join("reconcile.json")
+    File.write(stale, { summary: "Stary przebieg", findings: [] }.to_json)
+    File.utime(1.hour.ago.to_time, 1.hour.ago.to_time, stale)
+
+    OrphanedRunsCleanup.call
+    @review.reload
+    assert_equal [ "decided", "Stare" ], [ @review.status, @review.summary ]
   ensure
     FileUtils.rm_rf(@review.artifacts_dir)
   end
