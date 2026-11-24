@@ -30,6 +30,11 @@ class ReconcileReviewJobTest < ActiveSupport::TestCase
     run
   end
 
+  # Run zakłada kontroler przed kolejkowaniem joba — job dostaje tylko jego id.
+  def pending_run(previous_status)
+    @review.claude_runs.create!(kind: "reconcile", claude_config: @config, previous_status: previous_status)
+  end
+
   def session_writing_reconcile(payload)
     path = @review.artifacts_dir.join("reconcile.json")
     lambda do |_run|
@@ -45,7 +50,7 @@ class ReconcileReviewJobTest < ActiveSupport::TestCase
   test "wznawia sesję, importuje reconcile.json i wraca do poprzedniego statusu bez task_fit" do
     payload = { summary: "Nowe podsumowanie",
                 findings: [ { id: @finding.id, resolution: "dropped", note: "racja" } ] }
-    ReconcileReviewJob.perform_now(@review, "decided", session_factory: session_writing_reconcile(payload))
+    ReconcileReviewJob.perform_now(@review, pending_run("decided").id, session_factory: session_writing_reconcile(payload))
     run = @review.claude_runs.where(kind: "reconcile").sole
     @review.reload
     assert_equal({ status: "decided", summary: "Nowe podsumowanie", kind: "reconcile",
@@ -58,9 +63,40 @@ class ReconcileReviewJobTest < ActiveSupport::TestCase
 
   test "porażka sesji nie oznacza review jako failed" do
     factory = ->(_run) { Object.new.tap { |s| s.define_singleton_method(:call) { |_p| "gadanie bez pliku" } } }
-    ReconcileReviewJob.perform_now(@review, "reviewed", session_factory: factory)
+    run = pending_run("reviewed")
+    ReconcileReviewJob.perform_now(@review, run.id, session_factory: factory)
     @review.reload
     assert_equal [ "reviewed", nil ], [ @review.status, @review.error_message ]
+    assert_equal "failed", run.reload.status
+    assert_match(/reconcile\.json/, run.error_message)
+  end
+
+  # Sesja „succeeded", ale plik bez sensu — bez śladu na runie panel mówiłby „uzgodnione".
+  test "uszkodzony reconcile.json po udanej sesji zostawia powód na runie" do
+    path = @review.artifacts_dir.join("reconcile.json")
+    factory = lambda do |run|
+      Object.new.tap do |s|
+        s.define_singleton_method(:call) do |_p|
+          File.write(path, '{"summary": "ucięt')
+          run.update!(status: "succeeded")
+        end
+      end
+    end
+    run = pending_run("reviewed")
+    ReconcileReviewJob.perform_now(@review, run.id, session_factory: factory)
+    run.reload
+    assert_equal "failed", run.status
+    assert_predicate run.error_message, :present?
+  end
+
+  # Odzysk po restarcie zamknął run i oddał status — spóźniony job nie może go nadpisać.
+  test "run zamknięty przed startem joba nic nie robi" do
+    run = pending_run("decided")
+    run.update!(status: "aborted", finished_at: Time.current)
+    @review.update!(status: "reviewed")
+    factory = ->(_run) { flunk "sesja nie powinna ruszyć" }
+    ReconcileReviewJob.perform_now(@review, run.id, session_factory: factory)
+    assert_equal "reviewed", @review.reload.status
   end
 
   test "usunięty review nie wywraca joba" do
@@ -68,8 +104,9 @@ class ReconcileReviewJobTest < ActiveSupport::TestCase
     factory = lambda do |_run|
       Object.new.tap { |s| s.define_singleton_method(:call) { |_p| review.destroy } }
     end
+    run = pending_run("reviewed")
     assert_nothing_raised do
-      ReconcileReviewJob.perform_now(@review, "reviewed", session_factory: factory)
+      ReconcileReviewJob.perform_now(@review, run.id, session_factory: factory)
     end
   end
 end

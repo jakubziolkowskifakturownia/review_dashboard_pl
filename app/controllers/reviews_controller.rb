@@ -112,10 +112,15 @@ class ReviewsController < ApplicationController
     end
 
     # Patrz #compact — status zmieniamy od razu, a job go nie ustawia; poprzedni
-    # wraca w jego ensure.
-    previous_status = @review.status
-    @review.update!(status: "reviewing")
-    ReconcileReviewJob.perform_later(@review, previous_status)
+    # wraca w jego ensure. Run zakładamy tu, nie w jobie: trzyma poprzedni status
+    # trwale, więc restart z jobem jeszcze w kolejce da się rozpoznać i odkręcić.
+    run = @review.transaction do
+      previous_status = @review.status
+      @review.update!(status: "reviewing")
+      @review.claude_runs.create!(kind: "reconcile", claude_config: @review.effective_claude_config,
+                                  previous_status: previous_status)
+    end
+    ReconcileReviewJob.perform_later(@review, run.id)
     redirect_to review_path(@review), notice: "Uzgadniam wynik wznowioną sesją review…"
   end
 

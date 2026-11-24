@@ -1306,17 +1306,19 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
   end
 
   # Uzgodnienie: wznowiona sesja review rozstrzyga sporne uwagi — tylko z przycisku.
-  test "reconcile przestawia status na reviewing i kolejkuje job z poprzednim statusem" do
+  # Run powstaje od razu, nie w jobie: po restarcie z jobem w kolejce sprzątanie musi
+  # wiedzieć, że „reviewing" jest pożyczone przez uzgodnienie i do czego je oddać.
+  test "reconcile przestawia status na reviewing, zakłada run z poprzednim statusem i kolejkuje job" do
     review = reviews(:pr_review)
     review.update!(status: "reviewed", branch: "sl-fix-vat", summary: "OK")
     review.findings.create!(priority: "critical", title: "nil w kalkulacji", body: "x",
                             verdict: "refuted", verdict_note: "guard w invoice.rb:80")
 
-    assert_enqueued_with(job: ReconcileReviewJob, args: [ review, "reviewed" ]) do
-      post reconcile_review_path(review)
-    end
+    post reconcile_review_path(review)
+    run = review.claude_runs.where(kind: "reconcile").sole
+    assert_enqueued_with(job: ReconcileReviewJob, args: [ review, run.id ])
     assert_redirected_to review_path(review)
-    assert_equal "reviewing", review.reload.status
+    assert_equal [ "reviewing", "pending", "reviewed" ], [ review.reload.status, run.status, run.previous_status ]
   end
 
   test "reconcile odmawia, gdy nie ma czego uzgadniać" do
@@ -1343,6 +1345,24 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
     get review_path(review)
     assert_select "form[action=?]", reconcile_review_path(review)
     assert_select "button", text: /Uzgodnij wynik z weryfikacją i zgodnością/
+  end
+
+  # Nieudane uzgodnienie nie rusza statusu review — jedyny ślad to linia przy przycisku.
+  test "panel pokazuje wynik ostatniego uzgodnienia przy przycisku" do
+    review = reviews(:pr_review)
+    review.update!(status: "reviewed", branch: "sl-fix-vat", summary: "OK")
+    review.findings.create!(priority: "critical", title: "nil", body: "x", verdict: "refuted", verdict_note: "guard")
+    review.claude_runs.create!(kind: "reconcile", claude_config: "/x", status: "failed",
+                               error_message: "Sesja nie zapisała reconcile.json", finished_at: Time.current)
+    get review_path(review)
+    assert_select "p.muted", text: /ostatnie uzgodnienie .* padło: Sesja nie zapisała reconcile\.json/
+    assert_select "button", text: /Uzgodnij wynik z weryfikacją i zgodnością/
+
+    review.claude_runs.create!(kind: "reconcile", claude_config: "/x", status: "succeeded", finished_at: Time.current)
+    get review_path(review)
+    assert_select "p.muted", text: /uzgodnione \S/
+    assert_select "p.muted", text: /padło/, count: 0
+    assert_select "button", text: /Uzgodnij ponownie/
   end
 
   test "should show the verdict badges and gray out refuted findings" do

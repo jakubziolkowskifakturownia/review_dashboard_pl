@@ -364,6 +364,16 @@ class Review < ApplicationRecord
     claude_runs.exists?(kind: "reconcile", status: %w[pending running])
   end
 
+  # Wynik ostatniego uzgodnienia. Nieudane nie rusza statusu review (jak compact),
+  # więc to jedyne miejsce, w którym widać, że się nie powiodło i dlaczego.
+  def last_reconcile_run
+    claude_runs.where(kind: "reconcile").order(:id).last
+  end
+
+  def reconciled?
+    claude_runs.exists?(kind: "reconcile", status: "succeeded")
+  end
+
   # Weryfikacja chodzi cyklem pobocznym i nie zmienia statusu review — bez tego
   # pytania ani lista, ani karta znalezisk nie miałyby jak pokazać, że coś trwa.
   def findings_verification_in_progress?
