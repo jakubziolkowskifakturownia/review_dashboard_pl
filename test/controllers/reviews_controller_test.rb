@@ -1457,6 +1457,36 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Brak listy AC z opisu zadania - najpierw wygeneruj opis zadania", flash[:alert]
   end
 
+  test "panel pokazuje reviewerowi uzasadnienia weryfikatora i uzgodnienia jako tekst" do
+    review = gated_review(verdict: "partial")
+    review.update!(task_fit_reconciliation: {
+                     "changes" => { "ac1" => { "from" => "unverifiable", "to" => "met", "note" => "test w sms_spec.rb:12 to pokrywa" } },
+                     "evidence_found" => { "from" => false, "to" => true, "note" => "log w komentarzu 4" },
+                     "verdict" => "fits", "at" => Time.current.iso8601 })
+    review.findings.create!(priority: "critical", title: "nil w kalkulacji", body: "x", verdict: "refuted",
+                            verdict_note: "guard w invoice.rb:80", resolution: "dropped",
+                            resolution_note: "guard potwierdzony w kodzie")
+    review.findings.create!(priority: "minor", title: "spór", body: "y", verdict: "disputed",
+                            verdict_note: "zależy od konfiguracji", resolution: "kept",
+                            resolution_note: "konfiguracja domyślna ma ten błąd")
+
+    get review_path(review)
+
+    assert_select ".finding-dropped.finding-refuted p.muted", text: /Weryfikator \(.*obalone\): guard w invoice\.rb:80/
+    assert_select ".finding-dropped p.muted", text: /Po uzgodnieniu \(usunięte po uzgodnieniu\): guard potwierdzony w kodzie/
+    assert_select "p.muted", text: /Weryfikator \(.*\): zależy od konfiguracji/
+    assert_select "p.muted", text: /Po uzgodnieniu \(zostawione mimo weryfikacji\): konfiguracja domyślna/
+    assert_select ".task-fit-banner .reconcile-note", text: /task_fit: #{Review::TASK_FIT_LABELS["partial"]} → po uzgodnieniu: #{Review::TASK_FIT_LABELS["fits"]}/
+    assert_select ".task-fit-banner .reconcile-note", text: /dowód/i
+    assert_select ".task-fit-item .reconcile-note", text: /task_fit: \? niesprawdzalne z kodu → po uzgodnieniu: ✓ spełnione — test w sms_spec\.rb:12/
+  end
+
+  test "bez uzgodnienia panel nie ma linii uzasadnień" do
+    review = gated_review(verdict: "partial")
+    get review_path(review)
+    assert_select ".reconcile-note", count: 0
+  end
+
   # ---- Bramka zgodności z zadaniem: baner ma być pierwszą rzeczą na ekranie.
 
   def gated_review(verdict:, status: "reviewed")
