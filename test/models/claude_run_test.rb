@@ -100,4 +100,11 @@ class ClaudeRunTest < ActiveSupport::TestCase
     assert_equal "review", review.running_review_run.kind, "postęp review nie może zniknąć pod cyklem pobocznym"
     assert_equal side, review.running_claude_run, "abort i guardy widzą każdą pracującą sesję"
   end
+
+  test "reconcile jest rodzajem pobocznym i wznawialnym" do
+    assert_includes ClaudeRun::KINDS, "reconcile"
+    refute_includes ClaudeRun::LIFECYCLE_KINDS, "reconcile"
+    assert_includes Review::RESUMABLE_KINDS, "reconcile"
+    assert_equal ClaudeRun::TIMEOUTS["followup"], ClaudeRun::TIMEOUTS["reconcile"]
+  end
 end

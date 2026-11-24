@@ -108,7 +108,7 @@ class Review < ApplicationRecord
   # Sesje, do których się wraca przez `--resume`. `describe` jest osobną, krótką
   # sesją, której nikt nigdy nie wznawia — jej kontekst nie mówi nic o tym, czy
   # zmieści się kolejny followup.
-  RESUMABLE_KINDS = %w[review followup compact].freeze
+  RESUMABLE_KINDS = %w[review followup compact reconcile].freeze
 
   # Odczyt zapełnienia okna. Trzy stany, nie dwa: brak sesji (nil z context_usage),
   # sesja bez pomiaru (measured? == false) i pomiar — widok mówi w każdym co innego.
