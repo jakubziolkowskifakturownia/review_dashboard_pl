@@ -616,6 +616,28 @@ class ReviewTest < ActiveSupport::TestCase
     assert_equal "misses", review.task_fit_verdict
   end
 
+  test "task_fit_items i werdykt idą z nakładki, oryginał zostaje dostępny" do
+    review = reviews(:pr_review)
+    review.update!(task_criteria: { "criteria" => [ { "id" => "ac1", "text" => "x" }, { "id" => "ac2", "text" => "y" } ] },
+                   task_fit_status: "ready",
+                   task_fit: { "verdict" => "misses",
+                               "criteria" => [ { "id" => "ac1", "status" => "unmet", "note" => "brak" },
+                                               { "id" => "ac2", "status" => "unverifiable", "needed_evidence" => "log" } ] })
+    review.update!(task_fit_reconciliation: {
+      "changes" => { "ac1" => { "from" => "unmet", "to" => "met", "note" => "app/x.rb:4" } },
+      "evidence_found" => nil, "verdict" => "fits", "at" => Time.current.iso8601 })
+
+    item = review.task_fit_items.find { |i| i["id"] == "ac1" }
+    assert_equal [ "met", "app/x.rb:4", "unmet" ], item.values_at("status", "note", "reconciled_from")
+    assert_equal "fits", review.task_fit_verdict
+    assert_equal "misses", review.task_fit_original_verdict
+    assert_equal "unmet", review.task_fit_original_items.find { |i| i["id"] == "ac1" }["status"]
+    assert_equal [ "ac2" ], review.task_fit_manual_checks.map { |c| c["id"] }
+
+    review.update!(task_fit_status: "running")
+    assert_nil review.task_fit_verdict
+  end
+
   # Miękka bramka: override tylko gdy jest lista AC, a wynik jest czerwony albo go nie ma.
   test "approve_needs_override? przy misses albo bez gotowego wyniku, tylko gdy jest lista AC" do
     review = reviews(:pr_review)

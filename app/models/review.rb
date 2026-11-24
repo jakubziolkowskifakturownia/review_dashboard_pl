@@ -512,11 +512,21 @@ class Review < ApplicationRecord
   # ZAWSZE z opisu zadania, a wynik sesji tylko nakładamy statusem: sesja potrafi
   # zwrócić sekcję krótszą niż lista AC, a punkt, którego nie widać, nikogo nie zatrzyma.
   # Dzięki temu widok, bramka approve i snapshot decyzji chodzą po identycznej liście.
-  def task_fit_items
-    return task_criteria_list unless task_fit_verdict
+  def task_fit_original_items
+    return task_criteria_list unless task_fit_original_verdict
 
     answers = TASK_FIT_SECTIONS.keys.flat_map { |key| Array(task_fit[key]) }.index_by { |item| item["id"].to_s }
     task_criteria_list.map { |item| item.merge(answers[item["id"].to_s] || {}) }
+  end
+
+  # Punkty po uzgodnieniu: oryginał z nałożonymi zmianami statusu. Zmieniony punkt
+  # niesie `reconciled_from` (status sprzed zmiany), żeby widok pokazał, co się zmieniło.
+  def task_fit_items
+    changes = task_fit_reconciliation&.dig("changes") || {}
+    task_fit_original_items.map do |item|
+      change = changes[item["id"].to_s]
+      change ? item.merge("status" => change["to"], "note" => change["note"], "reconciled_from" => change["from"]) : item
+    end
   end
 
   # Statusy, które sesja rozstrzygnęła na zielono albo uznała za niedotyczące -
@@ -534,8 +544,8 @@ class Review < ApplicationRecord
   def task_fit_manual_checks
     return [] unless task_fit_verdict
 
-    Array(task_fit["criteria"]).select { |c| c["status"] == "unverifiable" }
-                               .map { |c| c.slice("id", "text", "needed_evidence") }
+    task_fit_items.select { |i| i["kind"] == "criterion" && i["status"] == "unverifiable" }
+                  .map { |i| i.slice("id", "text", "needed_evidence") }
   end
 
   # Bramka zgodności istnieje tylko wtedy, gdy opis zadania dał listę AC. Bez niej
@@ -546,8 +556,16 @@ class Review < ApplicationRecord
 
   # Werdykt tylko z gotowego wyniku: po odświeżeniu opisu albo w trakcie sesji
   # stary werdykt odnosiłby się do innej listy AC.
-  def task_fit_verdict
+  def task_fit_original_verdict
     task_fit&.dig("verdict") if task_fit_status == "ready"
+  end
+
+  # Werdykt po uzgodnieniu (nakładka), a bez niej - oryginalny. Ta sama zasada
+  # gotowości: nakładka nie przeżywa unieważnienia wyniku.
+  def task_fit_verdict
+    return unless task_fit_status == "ready"
+
+    task_fit_reconciliation&.dig("verdict") || task_fit_original_verdict
   end
 
   def task_fit_in_progress?
