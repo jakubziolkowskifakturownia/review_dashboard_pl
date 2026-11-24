@@ -743,8 +743,10 @@ class Review < ApplicationRecord
   # (review/followup/compact). Sesja poboczna (describe_task, komentarz) statusu
   # nie dotyka i może chodzić dalej — to często właśnie podczas jej zwisu user
   # chce status prostować, więc szeroki guard zamykałby wyjście awaryjne.
+  # Uzgodnienie czekające w kolejce też się liczy: jego ensure i tak nadpisze status
+  # tym sprzed kliknięcia, więc ręczna zmiana zniknęłaby po cichu.
   def status_overridable?
-    running_review_run.nil?
+    running_review_run.nil? && !reconcile_in_progress?
   end
 
   # Sesja, którą pokazuje panel postępu. Świadomie tylko „running": zakończony run
@@ -758,13 +760,13 @@ class Review < ApplicationRecord
   # szerokie (abort i guard przy przełączaniu konta mają widzieć KAŻDĄ pracującą sesję),
   # a te dwie metody odpowiadają na węższe pytanie „co pokazać w tej karcie".
   def running_review_run
-    claude_runs.where(status: "running", kind: ClaudeRun::LIFECYCLE_KINDS + [ "compact" ]).order(:id).last
+    claude_runs.where(status: "running", kind: ClaudeRun::LIFECYCLE_KINDS + ClaudeRun::REVIEW_PANEL_KINDS).order(:id).last
   end
 
   # Cykl poboczny (opis zadania, komentarz do zadania, weryfikacja poprawek) — bez filtra
   # statusu, bo karta ma odróżnić „czeka w kolejce" od „pracuje".
   def side_claude_run
-    claude_runs.where.not(kind: ClaudeRun::LIFECYCLE_KINDS + [ "compact" ]).order(:id).last
+    claude_runs.where.not(kind: ClaudeRun::LIFECYCLE_KINDS + ClaudeRun::REVIEW_PANEL_KINDS).order(:id).last
   end
 
   # Wszystkie sesje, do których da się wrócić — najnowsza pierwsza. Świadomie nie

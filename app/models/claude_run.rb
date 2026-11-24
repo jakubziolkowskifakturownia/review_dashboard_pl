@@ -75,9 +75,12 @@ class ClaudeRun < ApplicationRecord
 
   def dashboard_hints_changed? = destroyed? || previously_new_record? || saved_change_to_status?
 
-  # „lifecycle" = describe/review/followup (+compact, który pożycza panel review),
+  # Runy poboczne, które pożyczają status „reviewing" i panel review (postęp, „Przerwij").
+  REVIEW_PANEL_KINDS = %w[compact reconcile].freeze
+
+  # „lifecycle" = describe/review/followup (+compact i reconcile, które pożyczają panel review),
   # „side" = kroki poboczne z własnym cyklem życia i własną kartą w panelu.
-  def progress_scope = LIFECYCLE_KINDS.include?(kind) || kind == "compact" ? "review" : "side"
+  def progress_scope = LIFECYCLE_KINDS.include?(kind) || REVIEW_PANEL_KINDS.include?(kind) ? "review" : "side"
 
   def log_path
     review.artifacts_dir.join("#{kind}.log")

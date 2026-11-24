@@ -532,6 +532,24 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
     assert_select "form[action=?]", retry_run_review_path(review), count: 0
   end
 
+  test "panel uzgodnienia w kolejce mówi o uzgadnianiu i nie proponuje Ponów" do
+    review = reviews(:pr_review)
+    review.update!(status: "reviewing", description: "OPIS")
+    review.claude_runs.create!(kind: "reconcile", claude_config: "/x", status: "pending", previous_status: "reviewed")
+    get review_path(review)
+    assert_select "h2", text: "Uzgadniam wynik…"
+    assert_select "form[action=?]", retry_run_review_path(review), count: 0
+  end
+
+  test "panel pokazuje postęp pracującego uzgodnienia" do
+    review = reviews(:pr_review)
+    review.update!(status: "reviewing", description: "OPIS")
+    review.claude_runs.create!(kind: "reconcile", claude_config: "/x", status: "running", last_message: "Czytam invoice.rb")
+    get review_path(review)
+    assert_select ".progress-line", text: /Czytam invoice\.rb/
+    assert_select ".progress-line", text: /Czeka w kolejce/, count: 0
+  end
+
   test "panel nie pokazuje wiadomości zakończonej sesji jako bieżącego postępu" do
     review = reviews(:pr_review)
     review.update!(status: "reviewing")
