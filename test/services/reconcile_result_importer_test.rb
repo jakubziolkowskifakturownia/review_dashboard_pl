@@ -121,7 +121,7 @@ class ReconcileResultImporterTest < ActiveSupport::TestCase
   end
 
   test "id znaleziska jako string też wiąże, wpisy spoza obiektów są pomijane" do
-    import("findings" => [ "dropped", nil, { "id" => @refuted.id.to_s, "resolution" => "dropped", "note" => "racja" } ],
+    import("findings" => [ "dropped", nil, { "id" => [ 1 ], "resolution" => "dropped" }, { "id" => @refuted.id.to_s, "resolution" => "dropped", "note" => "racja" } ],
            "task_fit_changes" => [ 1, "ac1", { "id" => "ac1", "status" => "met", "note" => "app/x.rb:40" } ])
     assert_equal "dropped", @refuted.reload.resolution
     assert_equal "fits", @review.task_fit_verdict

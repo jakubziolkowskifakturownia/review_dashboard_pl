@@ -51,8 +51,8 @@ class ReconcileResultImporter
   def resolve_findings
     candidates = @review.findings.from_review.where(verdict: RECONCILABLE_VERDICTS).index_by(&:id)
     entries("findings").each do |entry|
-      # to_i: model potrafi podać id jako string.
-      finding = candidates[entry["id"].to_i]
+      # Przez to_s: model potrafi podać id jako string (a czasem coś zupełnie innego).
+      finding = candidates[entry["id"].to_s.to_i]
       next unless finding && Finding::RESOLUTIONS.include?(entry["resolution"])
 
       attrs = { resolution: entry["resolution"], resolution_note: entry["note"] }
