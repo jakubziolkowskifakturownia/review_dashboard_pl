@@ -68,8 +68,10 @@ class OrphanedRunsCleanup
   def self.recover_reconcile(review, run)
     begin
       ReconcileResultImporter.call(review, written_after: run.created_at)
-    rescue ReconcileResultImporter::Missing
-      # Sesja nie dokończyła pracy — wynik review zostaje taki, jaki był.
+    rescue StandardError => e
+      # Brak pliku, ucięty JSON (sesja ubita w trakcie zapisu) czy błąd walidacji: wynik
+      # review zostaje taki, jaki był. Nigdy fail! — „Ponów" nie umie wznowić uzgodnienia.
+      Rails.logger.warn("Odzysk uzgodnienia review #{review.id}: #{e.message}")
     end
     review.update!(status: run.previous_status.presence || "reviewed")
     true

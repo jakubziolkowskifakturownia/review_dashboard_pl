@@ -130,6 +130,20 @@ class OrphanedRunsCleanupTest < ActiveSupport::TestCase
     FileUtils.rm_rf(@review.artifacts_dir)
   end
 
+  test "odzysk uzgodnienia z uciętym reconcile.json przywraca status zamiast failować" do
+    @review.update!(status: "reviewing", summary: "Stare")
+    @review.claude_runs.create!(kind: "reconcile", claude_config: "/x", status: "running",
+                                supervisor_pid: nil, previous_status: "decided")
+    FileUtils.mkdir_p(@review.artifacts_dir)
+    File.write(@review.artifacts_dir.join("reconcile.json"), '{"summary": "ucięt')
+
+    OrphanedRunsCleanup.call
+    @review.reload
+    assert_equal [ "decided", "Stare", nil ], [ @review.status, @review.summary, @review.error_message ]
+  ensure
+    FileUtils.rm_rf(@review.artifacts_dir)
+  end
+
   # Przy boocie broadcast potrafi się wywrócić (render partiala przed załadowaniem routes).
   # Zatrzymany na pierwszym runie cleanup zostawiał gotowe review w „reviewing" na zawsze.
   test "błąd broadcastu nie przerywa sprzątania ani odzyskania wyniku z dysku" do
