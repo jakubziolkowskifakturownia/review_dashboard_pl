@@ -457,6 +457,16 @@ class ReviewTest < ActiveSupport::TestCase
     assert_not review.reload.fixes_verifiable?
   end
 
+  test "should not count dropped findings as something to verify after fixes" do
+    review = reviews(:pr_review)
+    review.update!(status: "decided", decision: "reject", decision_head_sha: "aaa1111", branch: "sl-fix-vat")
+    review.findings.create!(priority: "minor", title: "literówka", body: "x", resolution: "dropped")
+    assert_not review.reload.fixes_verifiable?
+
+    review.findings.create!(priority: "minor", title: "nazwa", body: "x", resolution: "kept")
+    assert review.reload.fixes_verifiable?
+  end
+
   test "should summarise fix verdicts for the findings header" do
     review = reviews(:pr_review)
     review.findings.create!(priority: "critical", title: "a", body: "x", fix_status: "implemented")

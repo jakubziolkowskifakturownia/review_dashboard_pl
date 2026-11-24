@@ -333,7 +333,7 @@ class Review < ApplicationRecord
   # czego porównać (review z samego zadania).
   def fixes_verifiable?
     status.in?(%w[decided waiting_review]) && pr_url.present? && branch.present? &&
-      decision_head_sha.present? && findings.any?
+      decision_head_sha.present? && findings.active.any?
   end
 
   # Rozkład werdyktów do nagłówka sekcji; pusty hash, gdy nic jeszcze nie sprawdzono.

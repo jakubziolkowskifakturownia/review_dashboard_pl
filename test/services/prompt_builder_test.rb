@@ -642,4 +642,29 @@ class PromptBuilderTest < ActiveSupport::TestCase
 
     assert_not_includes prompt, "## Zgodność z zadaniem"
   end
+
+  test "verify_fixes pomija usunięte po uzgodnieniu znaleziska, zostawione zostają" do
+    review = reviews(:pr_review)
+    review.update!(decision_head_sha: "aaa1111", branch: "sl-fix")
+    review.findings.create!(priority: "critical", title: "Usunięta uwaga", body: "x", resolution: "dropped")
+    review.findings.create!(priority: "minor", title: "Zostawiona uwaga", body: "x", resolution: "kept")
+
+    _, list = PromptBuilder.verify_fixes(review).split("## Znaleziska do sprawdzenia")
+    assert_not_includes list, "Usunięta uwaga"
+    assert_includes list, "Zostawiona uwaga"
+  end
+
+  test "self_fix pomija usunięte, a obaloną uwagę zostawioną po uzgodnieniu zachowuje" do
+    review = reviews(:pr_review)
+    review.findings.create!(priority: "critical", title: "Usunięta uwaga", body: "x", resolution: "dropped")
+    review.findings.create!(priority: "minor", title: "Obalona i zostawiona", body: "x", verdict: "refuted", resolution: "kept")
+    review.findings.create!(priority: "minor", title: "Obalona i obniżona", body: "x", verdict: "refuted", resolution: "downgraded")
+    review.findings.create!(priority: "minor", title: "Obalona bez uzgodnienia", body: "x", verdict: "refuted")
+
+    prompt = PromptBuilder.self_fix(review)
+    assert_not_includes prompt, "Usunięta uwaga"
+    assert_not_includes prompt, "Obalona bez uzgodnienia"
+    assert_includes prompt, "Obalona i zostawiona"
+    assert_includes prompt, "Obalona i obniżona"
+  end
 end
