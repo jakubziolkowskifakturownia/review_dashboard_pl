@@ -1287,6 +1287,46 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
     assert_match(/Nie ma czego weryfikować/, flash[:alert])
   end
 
+  # Uzgodnienie: wznowiona sesja review rozstrzyga sporne uwagi — tylko z przycisku.
+  test "reconcile przestawia status na reviewing i kolejkuje job z poprzednim statusem" do
+    review = reviews(:pr_review)
+    review.update!(status: "reviewed", branch: "sl-fix-vat", summary: "OK")
+    review.findings.create!(priority: "critical", title: "nil w kalkulacji", body: "x",
+                            verdict: "refuted", verdict_note: "guard w invoice.rb:80")
+
+    assert_enqueued_with(job: ReconcileReviewJob, args: [ review, "reviewed" ]) do
+      post reconcile_review_path(review)
+    end
+    assert_redirected_to review_path(review)
+    assert_equal "reviewing", review.reload.status
+  end
+
+  test "reconcile odmawia, gdy nie ma czego uzgadniać" do
+    review = reviews(:pr_review)
+    review.update!(status: "reviewed", branch: "sl-fix-vat")
+
+    assert_no_enqueued_jobs only: ReconcileReviewJob do
+      post reconcile_review_path(review)
+    end
+    assert_redirected_to review_path(review)
+    assert_match(/Nie ma czego uzgadniać/, flash[:alert])
+    assert_equal "reviewed", review.reload.status
+  end
+
+  test "przycisk uzgodnienia pokazuje się tylko, gdy jest co uzgadniać" do
+    review = reviews(:pr_review)
+    review.update!(status: "reviewed", branch: "sl-fix-vat", summary: "OK")
+    review.findings.create!(priority: "critical", title: "nil w kalkulacji", body: "x", verdict: "confirmed")
+
+    get review_path(review)
+    assert_select "form[action=?]", reconcile_review_path(review), count: 0
+
+    review.findings.first.update!(verdict: "refuted", verdict_note: "guard")
+    get review_path(review)
+    assert_select "form[action=?]", reconcile_review_path(review)
+    assert_select "button", text: /Uzgodnij wynik z weryfikacją i zgodnością/
+  end
+
   test "should show the verdict badges and gray out refuted findings" do
     review = reviews(:pr_review)
     review.update!(status: "reviewed", branch: "sl-fix-vat", summary: "OK",

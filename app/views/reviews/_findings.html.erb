@@ -18,6 +18,10 @@
     </p>
     <%= render "reviews/verify_findings_modal", review: review %>
   <% end %>
+  <% if review.reconcilable? %>
+    <%= button_to "🤝 Uzgodnij wynik z weryfikacją i zgodnością", reconcile_review_path(review), class: "btn" %>
+    <p class="muted">wznowiona sesja review rozstrzyga sporne uwagi i punkty zgodności; decyzja dostaje jeden spójny wynik</p>
+  <% end %>
   <% if verdict_summary.any? %>
     <p class="muted">Weryfikacja zasadności:
       <%= Finding::VERDICT_LABELS.filter_map { |verdict, label| "#{verdict_summary[verdict]} #{label}" if verdict_summary[verdict] }.join(" · ") %>
