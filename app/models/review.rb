@@ -522,6 +522,8 @@ class Review < ApplicationRecord
   # Punkty po uzgodnieniu: oryginał z nałożonymi zmianami statusu. Zmieniony punkt
   # niesie `reconciled_from` (status sprzed zmiany), żeby widok pokazał, co się zmieniło.
   def task_fit_items
+    return task_fit_original_items unless task_fit_status == "ready"
+
     changes = task_fit_reconciliation&.dig("changes") || {}
     task_fit_original_items.map do |item|
       change = changes[item["id"].to_s]

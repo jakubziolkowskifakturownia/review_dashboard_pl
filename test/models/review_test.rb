@@ -636,6 +636,9 @@ class ReviewTest < ActiveSupport::TestCase
 
     review.update!(task_fit_status: "running")
     assert_nil review.task_fit_verdict
+    assert_equal review.task_fit_original_items, review.task_fit_items
+    review.update!(task_fit_status: "skipped")
+    assert_equal review.task_criteria_list, review.task_fit_items
   end
 
   # Miękka bramka: override tylko gdy jest lista AC, a wynik jest czerwony albo go nie ma.
